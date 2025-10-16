@@ -1,0 +1,302 @@
+import { Platform } from 'react-native';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { auth as firebaseAuth } from './firebase';
+import { isMock } from './env';
+import { configureGoogleSignIn } from './googleSignIn';
+
+// Type definitions
+export interface AuthUser {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+}
+
+interface AuthCredential {
+  providerId: string;
+  signInMethod: string;
+}
+
+interface AuthProvider {
+  credential(idToken: string | null, accessToken: string | null): AuthCredential;
+}
+
+interface Auth {
+  signInWithEmailAndPassword(email: string, password: string): Promise<{ user: AuthUser }>;
+  createUserWithEmailAndPassword(email: string, password: string): Promise<{ user: AuthUser }>;
+  sendPasswordResetEmail(email: string): Promise<void>;
+  signInWithCredential(credential: AuthCredential): Promise<{ user: AuthUser }>;
+  signInWithPopup?(provider: AuthProvider): Promise<{ user: AuthUser }>;
+}
+
+// Platform-specific auth implementations
+const auth = firebaseAuth as unknown as Auth;
+const webAuth = Platform.OS === 'web' ? require('firebase/auth') : null;
+
+export interface AuthUser {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+}
+
+interface AuthCredential {
+  providerId: string;
+  signInMethod: string;
+}
+
+interface AuthProvider {
+  credential(idToken: string | null, accessToken: string | null): AuthCredential;
+}
+
+interface Auth {
+  signInWithEmailAndPassword(email: string, password: string): Promise<{ user: AuthUser }>;
+  createUserWithEmailAndPassword(email: string, password: string): Promise<{ user: AuthUser }>;
+  sendPasswordResetEmail(email: string): Promise<void>;
+  signInWithCredential(credential: AuthCredential): Promise<{ user: AuthUser }>;
+  signInWithPopup?(provider: AuthProvider): Promise<{ user: AuthUser }>;
+}
+
+const auth = firebaseAuth as unknown as Auth;
+
+// Platform-specific auth implementations
+const webAuth = Platform.OS === 'web' ? require('firebase/auth') : null;
+const nativeAuth = Platform.OS !== 'web' ? require('@react-native-firebase/auth').default : null;
+
+export interface AuthUser {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+}
+
+interface AuthCredential {
+  providerId: string;
+  signInMethod: string;
+}
+
+interface AuthProvider {
+  credential(idToken: string | null, accessToken: string | null): AuthCredential;
+}
+
+interface Auth {
+  signInWithEmailAndPassword(email: string, password: string): Promise<{ user: AuthUser }>;
+  createUserWithEmailAndPassword(email: string, password: string): Promise<{ user: AuthUser }>;
+  sendPasswordResetEmail(email: string): Promise<void>;
+  signInWithCredential(credential: AuthCredential): Promise<{ user: AuthUser }>;
+  signInWithPopup?(provider: AuthProvider): Promise<{ user: AuthUser }>;
+}
+
+const auth = firebaseAuth as unknown as Auth;
+
+const webAuth = Platform.OS === 'web' 
+  ? require('firebase/auth') 
+  : null;
+
+const nativeAuth = Platform.OS !== 'web' 
+  ? require('@react-native-firebase/auth').default 
+  : null;
+
+export async function emailSignIn(email: string, password: string): Promise<{ user: AuthUser }> {
+  if (isMock()) {
+    return { user: { uid: 'mock-email', email, displayName: null, photoURL: null } };
+  }
+  return Platform.OS === 'web'
+    ? webAuth.signInWithEmailAndPassword(auth, email, password)
+    : auth.signInWithEmailAndPassword(email, password);
+}
+
+export async function emailSignUp(email: string, password: string): Promise<{ user: AuthUser }> {
+  if (isMock()) {
+    return { user: { uid: 'mock-signup', email, displayName: null, photoURL: null } };
+  }
+  return Platform.OS === 'web'
+    ? webAuth.createUserWithEmailAndPassword(auth, email, password)
+    : auth.createUserWithEmailAndPassword(email, password);
+}
+
+export async function forgotPassword(email: string): Promise<void> {
+  if (isMock()) return;
+  return Platform.OS === 'web'
+    ? webAuth.sendPasswordResetEmail(auth, email)
+    : auth.sendPasswordResetEmail(email);
+}
+
+export async function signInWithGoogleAsync(): Promise<AuthUser> {
+  if (isMock()) {
+    return { 
+      uid: 'mock-google', 
+      email: 'mock@google.test',
+      displayName: 'Mock Google User',
+      photoURL: null 
+    };
+  }
+
+  try {
+    if (Platform.OS === 'web') {
+      const provider = new webAuth.GoogleAuthProvider();
+      const result = await webAuth.signInWithPopup(auth, provider);
+      return result.user;
+    } else {
+      await configureGoogleSignIn();
+      await GoogleSignin.hasPlayServices();
+      const userInfo = await GoogleSignin.signIn();
+      const { accessToken } = await GoogleSignin.getTokens();
+      const credential = nativeAuth.GoogleAuthProvider.credential(null, accessToken);
+      const result = await auth.signInWithCredential(credential);
+      return result.user;
+    }
+  } catch (error: any) {
+    console.error('Error during Google sign in:', error);
+    throw error;
+  }
+}
+
+export async function signInWithFacebookAsync(): Promise<AuthUser> {
+  if (isMock()) {
+    return { 
+      uid: 'mock-facebook',
+      email: 'mock@facebook.test',
+      displayName: 'Mock Facebook User',
+      photoURL: null 
+    };
+  }
+  throw new Error('Facebook auth not yet implemented. Use MODE=mock or implement real Facebook auth.');
+}
+
+export async function signInWithAppleAsync(): Promise<AuthUser> {
+  if (isMock()) {
+    return { 
+      uid: 'mock-apple',
+      email: 'mock@apple.test',
+      displayName: 'Mock Apple User',
+      photoURL: null 
+    };
+  }
+
+  if (Platform.OS !== 'ios') {
+    throw new Error('Apple Sign In is only supported on iOS devices');
+  }
+
+  try {
+    const provider = new (Platform.OS === 'web' ? webAuth : nativeAuth).OAuthProvider('apple.com');
+    const result = Platform.OS === 'web'
+      ? await webAuth.signInWithPopup(auth, provider)
+      : await auth.signInWithPopup(provider);
+    return result.user;
+  } catch (error: any) {
+    console.error('Error during Apple sign in:', error);
+    throw error;
+  }
+}
+
+// Type definition for User
+type User = {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  photoURL: string | null;
+};
+
+// Platform-specific auth functions
+let signInWithEmailAndPassword: any;
+let createUserWithEmailAndPassword: any;
+let sendPasswordResetEmail: any;
+let signInWithPopup: any;
+let signInWithCredential: any;
+let GoogleAuthProvider: any;
+let OAuthProvider: any;
+
+if (Platform.OS === 'web') {
+  const firebaseAuth = require('firebase/auth');
+  signInWithEmailAndPassword = firebaseAuth.signInWithEmailAndPassword;
+  createUserWithEmailAndPassword = firebaseAuth.createUserWithEmailAndPassword;
+  sendPasswordResetEmail = firebaseAuth.sendPasswordResetEmail;
+  signInWithPopup = firebaseAuth.signInWithPopup;
+  signInWithCredential = firebaseAuth.signInWithCredential;
+  GoogleAuthProvider = firebaseAuth.GoogleAuthProvider;
+  OAuthProvider = firebaseAuth.OAuthProvider;
+} else {
+  const RNAuth = require('@react-native-firebase/auth').default;
+  signInWithEmailAndPassword = async (auth: any, email: string, password: string) => 
+    auth.signInWithEmailAndPassword(email, password);
+  createUserWithEmailAndPassword = async (auth: any, email: string, password: string) => 
+    auth.createUserWithEmailAndPassword(email, password);
+  sendPasswordResetEmail = async (auth: any, email: string) => 
+    auth.sendPasswordResetEmail(email);
+  signInWithCredential = async (auth: any, credential: any) => 
+    auth.signInWithCredential(credential);
+  GoogleAuthProvider = RNAuth.GoogleAuthProvider;
+  OAuthProvider = RNAuth.OAuthProvider;
+}
+
+// Email/password
+export async function emailSignIn(email: string, password: string) {
+  if (isMock()) {
+    // simulate a login user object by signing in anonymously via mocked user
+    return { user: { uid: 'mock-email', email } as unknown as User };
+  }
+  return await signInWithEmailAndPassword(auth, email, password);
+}
+
+export async function emailSignUp(email: string, password: string) {
+  if (isMock()) {
+    return { user: { uid: 'mock-signup', email } as unknown as User };
+  }
+  return await createUserWithEmailAndPassword(auth, email, password);
+}
+
+export async function forgotPassword(email: string) {
+  if (isMock()) return;
+  await sendPasswordResetEmail(auth, email);
+}
+
+export async function signInWithGoogleAsync(): Promise<User> {
+  if (isMock()) return { uid: 'mock-google', email: 'mock@google.test' } as unknown as User;
+
+  try {
+    if (Platform.OS === 'web') {
+      // Web implementation
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      return result.user;
+    } else {
+      // Mobile implementation
+      configureGoogleSignIn();
+      await GoogleSignin.hasPlayServices();
+      const userInfo = await GoogleSignin.signIn();
+      const { accessToken } = await GoogleSignin.getTokens();
+      const credential = GoogleAuthProvider.credential(null, accessToken);
+      const result = await signInWithCredential(auth, credential);
+      return result.user;
+    }
+  } catch (error: any) {
+    console.error('Error during Google sign in:', error);
+    throw error;
+  }
+}
+
+// Facebook (mocked)
+export async function signInWithFacebookAsync(): Promise<User> {
+  if (isMock()) return { uid: 'mock-facebook', email: 'mock@facebook.test' } as unknown as User;
+  throw new Error('Facebook auth not yet implemented. Use MODE=mock or implement real Facebook auth.');
+}
+
+// Apple Sign In (iOS only)
+export async function signInWithAppleAsync(): Promise<User> {
+  if (isMock()) return { uid: 'mock-apple', email: 'mock@apple.test' } as unknown as User;
+
+  // We only support Apple Sign In on iOS
+  if (Platform.OS !== 'ios') {
+    throw new Error('Apple Sign In is only supported on iOS devices');
+  }
+
+  try {
+    const provider = new OAuthProvider('apple.com');
+    const result = await signInWithPopup(auth, provider);
+    return result.user;
+  } catch (error: any) {
+    console.error('Error during Apple sign in:', error);
+    throw error;
+  }
+}
