@@ -25,6 +25,8 @@ export default () => ({
       OPENAI_API_KEY: process.env.OPENAI_API_KEY || "",
       STRIPE_PUBLISHABLE_KEY: process.env.STRIPE_PUBLISHABLE_KEY || "",
       ADMOB_BANNER_ID: process.env.ADMOB_BANNER_ID || "",
+      ADMOB_APP_ID_ANDROID: process.env.ADMOB_APP_ID_ANDROID || "",
+      ADMOB_APP_ID_IOS: process.env.ADMOB_APP_ID_IOS || "",
       FIREBASE_API_KEY: process.env.FIREBASE_API_KEY || "",
       FIREBASE_AUTH_DOMAIN: process.env.FIREBASE_AUTH_DOMAIN || "",
       FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID || "",
@@ -53,6 +55,13 @@ export default () => ({
         "@react-native-google-signin/google-signin",
         {
           iosUrlScheme: "com.googleusercontent.apps.YOUR_IOS_CLIENT_ID" 
+        }
+      ],
+      [
+        "react-native-google-mobile-ads",
+        {
+          androidAppId: process.env.ADMOB_APP_ID_ANDROID || "ca-app-pub-3940256099942544~3347511713", // Test ID as fallback
+          iosAppId: process.env.ADMOB_APP_ID_IOS || "ca-app-pub-3940256099942544~1458002511" // Test ID as fallback
         }
       ]
     ],

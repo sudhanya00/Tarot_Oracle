@@ -3,9 +3,10 @@ import "./global.css"; // required for NativeWind on web
 // Main entry point for the Tarot Oracle application.
 
 import React, { useEffect, useState } from 'react';
-import { View, ActivityIndicator, StatusBar } from 'react-native';
+import { View, ActivityIndicator, StatusBar, Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import mobileAds from 'react-native-google-mobile-ads';
 
 // Initialize Firebase ONCE before anything else
 import { initializeFirebase } from './src/lib/firebase-config';
@@ -39,6 +40,18 @@ export default function App() {
         console.error('Failed to initialize Firebase:', error);
         setFirebaseReady(true); // Continue anyway
       });
+
+    // Initialize AdMob on mobile only
+    if (Platform.OS !== 'web') {
+      mobileAds()
+        .initialize()
+        .then(adapterStatuses => {
+          console.log('AdMob initialized:', adapterStatuses);
+        })
+        .catch(error => {
+          console.error('Failed to initialize AdMob:', error);
+        });
+    }
   }, []);
 
   if (!firebaseReady) {
@@ -62,6 +75,7 @@ export default function App() {
               <Stack.Screen name="Chat" component={ChatScreen} />
             </Stack.Navigator>
           </NavigationContainer>
+          <AdBanner />
         </View>
       </SubscriptionProvider>
     </AuthProvider>
