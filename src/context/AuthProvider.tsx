@@ -122,24 +122,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOutAsync = async () => {
-    if (isMock()) {
-      setUser(null);
-      return;
-    }
-    
-    const { initializeFirebase } = await import('../lib/firebase-config');
-    const { auth } = await initializeFirebase();
-    
-    if (Platform.OS === 'web') {
-      const { signOut } = await import('firebase/auth');
-      if (auth) {
+    try {
+      console.log('signOutAsync: Starting logout...');
+      
+      if (isMock()) {
+        console.log('signOutAsync: Mock mode, clearing user');
+        setUser(null);
+        return;
+      }
+      
+      console.log('signOutAsync: Initializing Firebase...');
+      const { initializeFirebase } = await import('../lib/firebase-config');
+      const { auth } = await initializeFirebase();
+      
+      if (!auth) {
+        console.error('signOutAsync: Auth not initialized');
+        throw new Error('Auth not initialized');
+      }
+      
+      if (Platform.OS === 'web') {
+        console.log('signOutAsync: Web platform, using Firebase signOut');
+        const { signOut } = await import('firebase/auth');
         await signOut(auth);
+        console.log('signOutAsync: Web signOut successful');
+      } else {
+        console.log('signOutAsync: Mobile platform, using RNFirebase signOut');
+        // React Native Firebase - auth is already the auth instance
+        await auth.signOut();
+        console.log('signOutAsync: Mobile signOut successful');
       }
-    } else {
-      // React Native Firebase
-      if (auth) {
-        await auth().signOut();
-      }
+    } catch (error) {
+      console.error('signOutAsync: Error during logout:', error);
+      throw error;
     }
   };
 

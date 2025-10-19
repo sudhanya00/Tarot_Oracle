@@ -37,40 +37,65 @@ export async function tarotReply(userMessages: { role: 'user' | 'assistant'; con
   const key = extra.OPENAI_API_KEY;
   const modeMock = isMock() || !key;
 
+  console.log('tarotReply: isMock =', isMock(), 'hasKey =', !!key, 'modeMock =', modeMock);
+
   if (modeMock) {
+    console.log('tarotReply: Using MOCK mode');
     const lastUser = userMessages.slice().reverse().find(m => m.role === 'user')?.content || '';
     const topic = lastUser?.slice(0, 40);
     return mockReading(topic);
   }
 
+  console.log('tarotReply: Calling OpenAI API...');
   const messages: ChatMessage[] = [
     { role: 'system', content: SYSTEM },
     ...userMessages,
   ];
 
   const body = {
-    model: 'gpt-5o-mini', // per your request
+    model: 'gpt-4o-mini', // GPT-4 Optimized Mini (corrected from gpt-5o-mini)
     messages,
     temperature: 0.8,
     max_tokens: 400,
   };
 
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${key}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
+  console.log('tarotReply: Request body prepared, model:', body.model);
 
-  if (!res.ok) {
-    const text = await res.text();
-    console.warn('OpenAI error:', text);
-    return 'Tuning Into the Energy 🔮';
+  try {
+    console.log('tarotReply: Starting fetch request...');
+    
+    // Add timeout to prevent hanging forever
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      console.warn('tarotReply: Request timeout after 30 seconds, aborting...');
+      controller.abort();
+    }, 30000); // 30 second timeout
+
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${key}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+    console.log('tarotReply: Fetch completed, status:', res.status);
+
+    if (!res.ok) {
+      const text = await res.text();
+      console.warn('tarotReply: OpenAI error response:', text);
+      return 'Tuning Into the Energy 🔮';
+    }
+
+    const json = await res.json();
+    const out = json?.choices?.[0]?.message?.content?.trim();
+    console.log('tarotReply: Received response from OpenAI:', out?.substring(0, 100) + '...');
+    return out || 'Tuning Into the Energy 🔮';
+  } catch (error) {
+    console.error('tarotReply: Error calling OpenAI:', error);
+    return 'The spirits are unclear at the moment. Please try again. 🔮';
   }
-
-  const json = await res.json();
-  const out = json?.choices?.[0]?.message?.content?.trim();
-  return out || 'Tuning Into the Energy 🔮';
 }

@@ -3,7 +3,7 @@ import "./global.css"; // required for NativeWind on web
 // Main entry point for the Tarot Oracle application.
 
 import React, { useEffect, useState } from 'react';
-import { SafeAreaView, View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, StatusBar } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
@@ -52,19 +52,17 @@ export default function App() {
   return (
     <AuthProvider>
       <SubscriptionProvider>
-        <SafeAreaView style={{ flex: 1 }}>
-          <View style={{ flex: 1 }}>
-            <NavigationContainer>
-              <Stack.Navigator initialRouteName="Welcome" screenOptions={{ headerShown: false }}>
-                <Stack.Screen name="Welcome" component={WelcomeScreen} />
-                <Stack.Screen name="Login" component={LoginScreen} />
-                <Stack.Screen name="Dashboard" component={DashboardScreen} />
-                <Stack.Screen name="Chat" component={ChatScreen} />
-              </Stack.Navigator>
-            </NavigationContainer>
-          </View>
-          <AdBanner />
-        </SafeAreaView>
+        <View style={{ flex: 1, backgroundColor: '#000' }}>
+          <StatusBar barStyle="light-content" backgroundColor="#000" translucent={false} />
+          <NavigationContainer>
+            <Stack.Navigator initialRouteName="Welcome" screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="Welcome" component={WelcomeScreen} />
+              <Stack.Screen name="Login" component={LoginScreen} />
+              <Stack.Screen name="Dashboard" component={DashboardScreen} />
+              <Stack.Screen name="Chat" component={ChatScreen} />
+            </Stack.Navigator>
+          </NavigationContainer>
+        </View>
       </SubscriptionProvider>
     </AuthProvider>
   );
