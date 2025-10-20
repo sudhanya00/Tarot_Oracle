@@ -13,7 +13,7 @@ export default () => ({
     // Configure for Android
     android: {
       package: "com.tarotoracle.app",
-      // Don't specify googleServicesFile - Firebase SDK will use hardcoded config from env vars
+      googleServicesFile: "./google-services.json",
       permissions: ["android.permission.INTERNET"],
       // Disable New Architecture to avoid C++ linker errors
       newArchEnabled: false
@@ -56,10 +56,21 @@ export default () => ({
       [
         "@react-native-google-signin/google-signin",
         {
-          iosUrlScheme: "com.googleusercontent.apps.YOUR_IOS_CLIENT_ID" 
+          iosUrlScheme: "com.googleusercontent.apps.1036422879083-bu2ec221p9ddu099ls32p55jtj71jnv8" 
         }
       ],
-      "./plugins/withGoogleServices.js"
+      "./plugins/withGoogleServices.js",
+      [
+        "@react-native-firebase/app",
+        {
+          "android": {
+            "googleServicesFile": "./google-services.json"
+          },
+          "ios": {
+            "googleServicesFile": "./GoogleService-Info.plist"
+          }
+        }
+      ]
     ],
   },
 });

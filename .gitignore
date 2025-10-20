@@ -22,6 +22,11 @@ npm-debug.*
 google-services.json
 GoogleService-Info.plist
 android/app/google-services.json
+ios/GoogleService-Info.plist
+
+# Android generated files
+android/
+ios/
 
 # Keystores (signing keys)
 *.keystore

@@ -10,19 +10,23 @@
       "android": {
         "gradleCommand": ":app:assembleDebug",
         "buildType": "apk"
-      }
+      },
+      "node": "20.18.0"
     },
     "preview": {
       "distribution": "internal",
       "android": {
-        "buildType": "apk"
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease"
       },
       "env": {
         "npm_config_legacy_peer_deps": "true"
-      }
+      },
+      "node": "20.18.0"
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "node": "20.18.0"
     }
   },
   "submit": {
