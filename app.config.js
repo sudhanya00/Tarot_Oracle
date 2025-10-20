@@ -15,12 +15,14 @@ export default () => ({
       package: "com.tarotoracle.app",
       googleServicesFile: "./google-services.json",
       permissions: ["android.permission.INTERNET"],
-      // Disable New Architecture to avoid C++ linker errors
-      newArchEnabled: false
+      // Enable New Architecture for React Native Reanimated 4.x
+      newArchEnabled: true
     },
     ios: {
       googleServicesFile: process.env.GOOGLE_SERVICES_PLIST || "./GoogleService-Info.plist",
-      bundleIdentifier: "com.tarotoracle.app"
+      bundleIdentifier: "com.tarotoracle.app",
+      // Enable New Architecture for React Native Reanimated 4.x
+      newArchEnabled: true
     },
 
     extra: {
