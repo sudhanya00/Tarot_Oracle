@@ -20,7 +20,8 @@
         "gradleCommand": ":app:assembleRelease"
       },
       "env": {
-        "npm_config_legacy_peer_deps": "true"
+        "npm_config_legacy_peer_deps": "true",
+        "GOOGLE_SERVICES_JSON": "./google-services.json:@GOOGLE_SERVICES_JSON"
       },
       "node": "20.18.0"
     },
