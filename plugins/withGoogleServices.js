@@ -7,79 +7,22 @@ const withGoogleServices = (config) => {
     'android',
     async (config) => {
       const googleServicesPath = path.join(config.modRequest.platformProjectRoot, 'app', 'google-services.json');
+      const rootGoogleServicesPath = path.join(config.modRequest.projectRoot, 'google-services.json');
       
-      // Create google-services.json from environment or use existing file
-      const googleServicesContent = {
-        "project_info": {
-          "project_number": "1036422879083",
-          "project_id": "tarot-oracle-17dbe",
-          "storage_bucket": "tarot-oracle-17dbe.firebasestorage.app"
-        },
-        "client": [
-          {
-            "client_info": {
-              "mobilesdk_app_id": "1:1036422879083:android:5e2cc59b243515d98a9e2e",
-              "android_client_info": {
-                "package_name": "com.tarotoracle.app"
-              }
-            },
-            "oauth_client": [
-              {
-                "client_id": "1036422879083-v3m283n55co59a0g9n0ushssftn1rqaa.apps.googleusercontent.com",
-                "client_type": 1,
-                "android_info": {
-                  "package_name": "com.tarotoracle.app",
-                  "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
-                }
-              },
-              {
-                "client_id": "1036422879083-vnaotr1aa7frf1ng5iaoe23fg5obflhh.apps.googleusercontent.com",
-                "client_type": 1,
-                "android_info": {
-                  "package_name": "com.tarotoracle.app",
-                  "certificate_hash": "7d4d86b1935b4fc79309870cc0bd8c2af96b4845"
-                }
-              },
-              {
-                "client_id": "1036422879083-ajbol7kjp0gapeufmc2bjqc58r3ktk2p.apps.googleusercontent.com",
-                "client_type": 3
-              }
-            ],
-            "api_key": [
-              {
-                "current_key": "AIzaSyDABtHWFfTVpPGg3QAUdLVC50Rv8FJCdWo"
-              }
-            ],
-            "services": {
-              "appinvite_service": {
-                "other_platform_oauth_client": [
-                  {
-                    "client_id": "1036422879083-ajbol7kjp0gapeufmc2bjqc58r3ktk2p.apps.googleusercontent.com",
-                    "client_type": 3
-                  },
-                  {
-                    "client_id": "1036422879083-bu2ec221p9ddu099ls32p55jtj71jnv8.apps.googleusercontent.com",
-                    "client_type": 2,
-                    "ios_info": {
-                      "bundle_id": "com.tarotoracle.app"
-                    }
-                  }
-                ]
-              }
-            }
-          }
-        ],
-        "configuration_version": "1"
-      };
-      
-      // Ensure directory exists
-      const dir = path.dirname(googleServicesPath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
+      // Copy google-services.json from project root to android/app if it exists
+      if (fs.existsSync(rootGoogleServicesPath)) {
+        // Ensure directory exists
+        const dir = path.dirname(googleServicesPath);
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
+        
+        // Copy the file
+        fs.copyFileSync(rootGoogleServicesPath, googleServicesPath);
+        console.log('✓ Copied google-services.json to android/app');
+      } else {
+        console.warn('⚠ google-services.json not found in project root');
       }
-      
-      // Write file
-      fs.writeFileSync(googleServicesPath, JSON.stringify(googleServicesContent, null, 2));
       
       return config;
     },
