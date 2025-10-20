@@ -20,10 +20,10 @@ npm-debug.*
 functions/.env*
 
 # Firebase config files (contain sensitive info)
-google-services.json
-GoogleService-Info.plist
-android/app/google-services.json
-ios/GoogleService-Info.plist
+# google-services.json - commenting out to allow EAS Build
+# GoogleService-Info.plist - commenting out to allow EAS Build
+# android/app/google-services.json
+# ios/GoogleService-Info.plist
 
 # Android generated files
 android/
