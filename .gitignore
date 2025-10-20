@@ -17,6 +17,7 @@ npm-debug.*
 .env
 .env.local
 .env.*.local
+functions/.env*
 
 # Firebase config files (contain sensitive info)
 google-services.json
