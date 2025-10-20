@@ -6,7 +6,9 @@
     "outDir": "lib",
     "rootDir": "src",
     "sourceMap": true,
-    "strict": true
+    "strict": false,
+    "esModuleInterop": true,
+    "skipLibCheck": true
   },
   "compileOnSave": true
 }

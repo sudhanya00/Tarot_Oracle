@@ -13,8 +13,10 @@ export default () => ({
     // Configure for Android
     android: {
       package: "com.tarotoracle.app",
-      googleServicesFile: process.env.GOOGLE_SERVICES_JSON || "./google-services.json",
-      permissions: ["android.permission.INTERNET"]
+      // Don't specify googleServicesFile - Firebase SDK will use hardcoded config from env vars
+      permissions: ["android.permission.INTERNET"],
+      // Disable New Architecture to avoid C++ linker errors
+      newArchEnabled: false
     },
     ios: {
       googleServicesFile: process.env.GOOGLE_SERVICES_PLIST || "./GoogleService-Info.plist",
@@ -50,20 +52,14 @@ export default () => ({
 
     // ✅ Explicit plugin list (prevents Expo from asking you later)
     plugins: [
-      "expo-web-browser",          // used in subscriptions.ts
+      "expo-web-browser",
       [
         "@react-native-google-signin/google-signin",
         {
           iosUrlScheme: "com.googleusercontent.apps.YOUR_IOS_CLIENT_ID" 
         }
       ],
-      [
-        "react-native-google-mobile-ads",
-        {
-          androidAppId: process.env.ADMOB_APP_ID_ANDROID || "ca-app-pub-3940256099942544~3347511713", // Test ID as fallback
-          iosAppId: process.env.ADMOB_APP_ID_IOS || "ca-app-pub-3940256099942544~1458002511" // Test ID as fallback
-        }
-      ]
+      "./plugins/withGoogleServices.js"
     ],
   },
 });
