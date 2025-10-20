@@ -5,7 +5,7 @@ export default () => ({
   expo: {
     name: "Tarot_Oracle",
     slug: "Tarot_Oracle",
-    owner: "itsjkjass",  // TODO: Change to your Expo username when setting up
+    owner: "sudhanya",
     scheme: "tarotoracle",
     platforms: ["ios", "android", "web"],
     web: {bundler: "metro"},
@@ -48,7 +48,7 @@ export default () => ({
       STRIPE_PORTAL_URL: process.env.STRIPE_PORTAL_URL || "",
       // EAS project ID
       eas: {
-        projectId: "30d891eb-23dd-498b-962b-7fc803245e8a"
+        projectId: "e18adf91-3d38-4345-9bf5-5085d46adfef"
       }
     },
 
