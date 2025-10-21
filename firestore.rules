@@ -1,6 +1,11 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Users collection - users can read/write their own user document
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+    
     // Subscriptions collection - users can read their own subscription
     match /subscriptions/{uid} {
       allow read: if request.auth != null && request.auth.uid == uid;
