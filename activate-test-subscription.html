@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Activate Test Subscription</title>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-functions-compat.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #0f172a;
+            color: #fde68a;
+        }
+        h1 { color: #facc15; }
+        button {
+            background: #581c87;
+            color: #fde68a;
+            border: 2px solid #a855f7;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover { background: #6b21a8; }
+        #status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            background: rgba(250, 204, 21, 0.1);
+            border: 1px solid #facc15;
+        }
+        .success { color: #4ade80; }
+        .error { color: #ef4444; }
+        .info { color: #60a5fa; }
+    </style>
+</head>
+<body>
+    <h1>🔮 Tarot Oracle - Test Subscription Activator</h1>
+    <p>Click the button below to sign in and activate your test subscription.</p>
+    
+    <div id="auth-section">
+        <button onclick="signInWithGoogle()">Sign in with Google</button>
+        <button onclick="signInWithEmail()">Sign in with Email</button>
+    </div>
+    
+    <div id="action-section" style="display:none;">
+        <h3>Logged in as: <span id="userEmail"></span></h3>
+        <button onclick="activateSubscription()">✨ Activate Test Subscription</button>
+        <button onclick="signOut()">Sign Out</button>
+    </div>
+    
+    <div id="status"></div>
+
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyAAbR62EHz4_omuBj9nZZoSw0mBcp2pdlo",
+            authDomain: "tarot-oracle-17dbe.firebaseapp.com",
+            projectId: "tarot-oracle-17dbe",
+            storageBucket: "tarot-oracle-17dbe.appspot.com",
+            messagingSenderId: "1036422879083",
+            appId: "1:1036422879083:web:1fa875d019abb3058a9e2e"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const functions = firebase.functions();
+
+        // Monitor auth state
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                document.getElementById('auth-section').style.display = 'none';
+                document.getElementById('action-section').style.display = 'block';
+                document.getElementById('userEmail').textContent = user.email;
+                log(`Logged in as: ${user.email}`, 'info');
+            } else {
+                document.getElementById('auth-section').style.display = 'block';
+                document.getElementById('action-section').style.display = 'none';
+            }
+        });
+
+        function log(message, type = 'info') {
+            const status = document.getElementById('status');
+            status.innerHTML = `<p class="${type}">${message}</p>`;
+        }
+
+        async function signInWithGoogle() {
+            try {
+                log('Signing in with Google...', 'info');
+                const provider = new firebase.auth.GoogleAuthProvider();
+                await auth.signInWithPopup(provider);
+                log('✅ Signed in successfully!', 'success');
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function signInWithEmail() {
+            const email = prompt('Enter your email:');
+            const password = prompt('Enter your password:');
+            if (!email || !password) return;
+
+            try {
+                log('Signing in...', 'info');
+                await auth.signInWithEmailAndPassword(email, password);
+                log('✅ Signed in successfully!', 'success');
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function activateSubscription() {
+            try {
+                log('⏳ Activating test subscription...', 'info');
+                const addTestSub = functions.httpsCallable('addTestSubscription');
+                const result = await addTestSub();
+                log(`✅ ${result.data.message}`, 'success');
+                log('🎉 You now have unlimited access! Refresh your app.', 'success');
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function signOut() {
+            await auth.signOut();
+            log('Signed out', 'info');
+        }
+    </script>
+</body>
+</html>

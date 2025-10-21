@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.trimChatMessages = exports.stripeWebhook = exports.createStripeCheckoutSession = void 0;
+exports.addTestSubscription = exports.trimChatMessages = exports.stripeWebhook = exports.createStripeCheckoutSession = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const params_1 = require("firebase-functions/params");
 const admin = __importStar(require("firebase-admin"));
@@ -206,5 +206,41 @@ exports.trimChatMessages = (0, https_1.onCall)(async (request) => {
     const trimmed = messages.slice(-25);
     await chatRef.update({ messages: trimmed });
     return { ok: true, trimmed: messages.length - 25 };
+});
+// Test function to add subscription for specific users (for development/testing)
+exports.addTestSubscription = (0, https_1.onCall)(async (request) => {
+    // Require authentication
+    if (!request.auth) {
+        throw new https_1.HttpsError("unauthenticated", "Sign in required.");
+    }
+    const db = admin.firestore();
+    const userId = request.auth.uid;
+    // Allowed test emails (your emails)
+    const allowedEmails = [
+        'sudhanyakhajuria@outlook.com',
+        'sudhanyak357@gmail.com'
+    ];
+    const userEmail = request.auth.token.email;
+    if (!userEmail || !allowedEmails.includes(userEmail)) {
+        throw new https_1.HttpsError("permission-denied", "This function is only available for test users.");
+    }
+    try {
+        await db.collection('subscriptions').doc(userId).set({
+            isActive: true,
+            expiresAt: Date.now() + (365 * 24 * 60 * 60 * 1000), // 1 year
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            customerId: 'test-customer-' + userId,
+            subscriptionId: 'test-sub-' + userId,
+            priceId: 'test-price',
+            status: 'active',
+            email: userEmail,
+            note: '⚡ Test subscription - added via addTestSubscription function'
+        }, { merge: true });
+        return { success: true, message: `Test subscription activated for ${userEmail}` };
+    }
+    catch (error) {
+        console.error('Error adding test subscription:', error);
+        throw new https_1.HttpsError("internal", `Failed to add subscription: ${error.message}`);
+    }
 });
 //# sourceMappingURL=index.js.map

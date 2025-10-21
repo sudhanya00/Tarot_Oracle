@@ -189,3 +189,45 @@ export const trimChatMessages = onCall(async (request) => {
   await chatRef.update({ messages: trimmed });
   return { ok: true, trimmed: messages.length - 25 };
 });
+
+// Test function to add subscription for specific users (for development/testing)
+export const addTestSubscription = onCall(async (request) => {
+  // Require authentication
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in required.");
+  }
+
+  const db = admin.firestore();
+  const userId = request.auth.uid;
+  
+  // Allowed test emails (your emails)
+  const allowedEmails = [
+    'sudhanyakhajuria@outlook.com',
+    'sudhanyak357@gmail.com'
+  ];
+  
+  const userEmail = request.auth.token.email;
+  
+  if (!userEmail || !allowedEmails.includes(userEmail)) {
+    throw new HttpsError("permission-denied", "This function is only available for test users.");
+  }
+
+  try {
+    await db.collection('subscriptions').doc(userId).set({
+      isActive: true,
+      expiresAt: Date.now() + (365 * 24 * 60 * 60 * 1000), // 1 year
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      customerId: 'test-customer-' + userId,
+      subscriptionId: 'test-sub-' + userId,
+      priceId: 'test-price',
+      status: 'active',
+      email: userEmail,
+      note: '⚡ Test subscription - added via addTestSubscription function'
+    }, { merge: true });
+
+    return { success: true, message: `Test subscription activated for ${userEmail}` };
+  } catch (error: any) {
+    console.error('Error adding test subscription:', error);
+    throw new HttpsError("internal", `Failed to add subscription: ${error.message}`);
+  }
+});

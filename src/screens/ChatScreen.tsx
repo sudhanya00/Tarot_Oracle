@@ -16,7 +16,7 @@ const chatBg = require('../../assets/images/chat_bg.png');
 
 import { useAuth } from '../context/AuthProvider';
 import { useSub } from '../context/SubscriptionProvider';
-import { ensureChat, appendMessage, setTitleFromAssistant, Msg } from '../hooks/useChats';
+import { ensureChat, appendMessage, setTitleFromAssistant, loadChat, Msg } from '../hooks/useChats';
 import { tarotReply } from '../lib/openai';
 import { startPurchaseFlow } from '../lib/subscriptions';
 
@@ -62,6 +62,28 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
         setChatId(fallbackId);
       });
   }, [user?.uid, route?.params?.chatId]);
+
+  // Load existing chat messages when chatId is set
+  useEffect(() => {
+    if (!user || !chatId) return;
+    
+    console.log('ChatScreen: Loading messages for chatId:', chatId);
+    loadChat(user.uid, chatId)
+      .then((chat) => {
+        if (chat && chat.messages && chat.messages.length > 0) {
+          console.log('ChatScreen: Loaded', chat.messages.length, 'messages');
+          setMessages(chat.messages);
+          // Check if user has already received an assistant reply
+          const hasAssistantReply = chat.messages.some(m => m.role === 'assistant');
+          setFreeUsed(hasAssistantReply);
+        } else {
+          console.log('ChatScreen: No messages found in chat');
+        }
+      })
+      .catch((error) => {
+        console.error('ChatScreen: Error loading chat:', error);
+      });
+  }, [user?.uid, chatId]);
 
   const scrollToEnd = () => setTimeout(() => scroller.current?.scrollToEnd({ animated: true }), 100);
 
@@ -239,7 +261,7 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
           <View style={{ flex: 1, backgroundColor: 'transparent' }}>
             <ScrollView 
               ref={scroller} 
-              contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
+              contentContainerStyle={{ padding: 16, paddingTop: 60, paddingBottom: 24 }}
               showsVerticalScrollIndicator={false}
             >
               {/* Empty-state hero */}
