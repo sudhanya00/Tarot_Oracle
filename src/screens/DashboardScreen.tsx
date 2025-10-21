@@ -74,15 +74,8 @@ const DashboardScreen: React.FC = () => {
   }, [user?.uid]);
 
   const handleNewChat = () => {
-    // Allow creating first chat for free, require subscription only after that
-    const totalChats = Object.values(chatGroups).reduce((sum, group) => sum + group.length, 0);
-    
-    if (!canChat && totalChats > 0) {
-      // User has already created chats and is not subscribed
-      return handleSubscribe();
-    }
-    
-    // Allow new chat (either subscribed or first free chat)
+    // Always allow creating new chats
+    // ChatScreen will handle showing subscribe button after free message is used
     navigation.navigate("Chat");
   };
 
@@ -245,23 +238,22 @@ const DashboardScreen: React.FC = () => {
             </View>
           </View>
 
-          {/* New Chat button */}
+          {/* New Chat button - Always enabled, ChatScreen handles subscription */}
           <TouchableOpacity
             onPress={handleNewChat}
-            disabled={!canChat}
             style={{
-              backgroundColor: canChat ? "#1e3a8a" : "#1e293b",
+              backgroundColor: "#1e3a8a",
               borderRadius: 16,
               paddingVertical: 16,
               alignItems: "center",
               marginBottom: 24,
               borderWidth: 2,
-              borderColor: canChat ? "#60a5fa" : "#475569",
+              borderColor: "#60a5fa",
             }}
           >
             <Text
               style={{
-                color: canChat ? "#93c5fd" : "#64748b",
+                color: "#93c5fd",
                 fontSize: 18,
                 fontWeight: "600",
                 letterSpacing: 0.5,

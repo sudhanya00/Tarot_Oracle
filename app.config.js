@@ -3,15 +3,15 @@ import "dotenv/config";
 
 export default () => ({
   expo: {
-    name: "Tarot_Oracle",
-    slug: "Tarot_Oracle",
+    name: "Tarot Oracle",
+    slug: "tarot_oracle",
     owner: "sudhanyak",
     scheme: "tarotoracle",
     platforms: ["ios", "android", "web"],
     web: {bundler: "metro"},
     
     // App Icon
-    icon: "./assets/images/hooded_oracle.png",
+    icon: "./assets/images/icon.png",
     
     // Adaptive Icon for Android (uses same image)
     adaptiveIcon: {
