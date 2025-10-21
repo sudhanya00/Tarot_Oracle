@@ -20,7 +20,8 @@
         "gradleCommand": ":app:assembleRelease"
       },
       "env": {
-        "npm_config_legacy_peer_deps": "true"
+        "npm_config_legacy_peer_deps": "true",
+        "MODE": "prod"
       },
       "node": "22.11.0"
     },
