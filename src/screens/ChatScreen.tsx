@@ -11,6 +11,7 @@ import {
   SafeAreaView,
   ActivityIndicator,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Send, Sparkles } from 'lucide-react-native';
 const chatBg = require('../../assets/images/chat_bg.png');
 
@@ -27,6 +28,7 @@ type Props = { route?: any };
 const ChatScreen: React.FC<Props> = ({ route }) => {
   const { user } = useAuth();
   const { canChat, refresh } = useSub();
+  const insets = useSafeAreaInsets();
   const [chatId, setChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState('');
@@ -188,7 +190,12 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
     
     if (shouldShowSubscribe) {
       return (
-        <View style={{ padding: 16, alignItems: 'center', backgroundColor: 'rgba(0, 0, 0, 0.9)' }}>
+        <View style={{ 
+          padding: 16, 
+          paddingBottom: 16 + insets.bottom, // Add safe area padding for navigation bar
+          alignItems: 'center', 
+          backgroundColor: 'rgba(0, 0, 0, 0.9)' 
+        }}>
           <TouchableOpacity
             onPress={handleSubscribe}
             style={{
@@ -216,7 +223,14 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
     }
 
     return (
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, backgroundColor: 'rgba(0, 0, 0, 0.9)' }}>
+      <View style={{ 
+        flexDirection: 'row', 
+        alignItems: 'center', 
+        gap: 8, 
+        padding: 12, 
+        paddingBottom: 12 + insets.bottom, // Add safe area padding for navigation bar
+        backgroundColor: 'rgba(0, 0, 0, 0.9)' 
+      }}>
         <Input
           value={input}
           onChangeText={setInput}
