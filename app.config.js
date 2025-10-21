@@ -9,6 +9,22 @@ export default () => ({
     scheme: "tarotoracle",
     platforms: ["ios", "android", "web"],
     web: {bundler: "metro"},
+    
+    // App Icon
+    icon: "./assets/images/hooded_oracle.png",
+    
+    // Adaptive Icon for Android (uses same image)
+    adaptiveIcon: {
+      foregroundImage: "./assets/images/hooded_oracle.png",
+      backgroundColor: "#000000"
+    },
+    
+    // Splash Screen
+    splash: {
+      image: "./assets/images/hooded_oracle.png",
+      resizeMode: "contain",
+      backgroundColor: "#000000"
+    },
 
     // Configure for Android
     android: {
