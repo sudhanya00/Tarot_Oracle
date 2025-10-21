@@ -344,3 +344,72 @@ export async function deleteChat(uid: string, chatId: string): Promise<void> {
     throw error;
   }
 }
+
+// Check if user has used their free trial (1 message total)
+export async function hasUsedFreeTrial(uid: string): Promise<boolean> {
+  console.log('hasUsedFreeTrial: Checking for uid:', uid);
+  
+  if (isMock()) {
+    // In mock mode, check if user has any chats with assistant messages
+    if (!mockChats[uid]) return false;
+    const chats = Object.values(mockChats[uid]);
+    return chats.some(chat => 
+      chat.messages?.some(m => m.role === 'assistant')
+    );
+  }
+
+  try {
+    const db = await getFirestore();
+    
+    if (Platform.OS === 'web') {
+      const { doc, getDoc } = await import('firebase/firestore');
+      const userDoc = await getDoc(doc(db, 'users', uid));
+      const hasUsed = userDoc.exists() ? userDoc.data()?.hasUsedFreeTrial === true : false;
+      console.log('hasUsedFreeTrial (web):', hasUsed);
+      return hasUsed;
+    } else {
+      // Mobile: Use React Native Firebase
+      const userDoc = await db.collection('users').doc(uid).get();
+      const hasUsed = userDoc.exists ? userDoc.data()?.hasUsedFreeTrial === true : false;
+      console.log('hasUsedFreeTrial (mobile):', hasUsed);
+      return hasUsed;
+    }
+  } catch (error) {
+    console.error('hasUsedFreeTrial: Error:', error);
+    return false;
+  }
+}
+
+// Mark that user has used their free trial
+export async function markFreeTrialUsed(uid: string): Promise<void> {
+  console.log('markFreeTrialUsed: Marking for uid:', uid);
+  
+  if (isMock()) {
+    console.log('markFreeTrialUsed: Mock mode, no-op');
+    return;
+  }
+
+  try {
+    const db = await getFirestore();
+    
+    if (Platform.OS === 'web') {
+      const { doc, updateDoc, serverTimestamp } = await import('firebase/firestore');
+      await updateDoc(doc(db, 'users', uid), {
+        hasUsedFreeTrial: true,
+        freeTrialUsedAt: serverTimestamp()
+      });
+      console.log('markFreeTrialUsed (web): Updated successfully');
+    } else {
+      // Mobile: Use React Native Firebase
+      const rnfFirestore = await import('@react-native-firebase/firestore');
+      await db.collection('users').doc(uid).update({
+        hasUsedFreeTrial: true,
+        freeTrialUsedAt: rnfFirestore.default.FieldValue.serverTimestamp()
+      });
+      console.log('markFreeTrialUsed (mobile): Updated successfully');
+    }
+  } catch (error) {
+    console.error('markFreeTrialUsed: Error:', error);
+    throw error;
+  }
+}

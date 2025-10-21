@@ -17,7 +17,7 @@ const chatBg = require('../../assets/images/chat_bg.png');
 
 import { useAuth } from '../context/AuthProvider';
 import { useSub } from '../context/SubscriptionProvider';
-import { ensureChat, appendMessage, setTitleFromAssistant, loadChat, Msg } from '../hooks/useChats';
+import { ensureChat, appendMessage, setTitleFromAssistant, loadChat, hasUsedFreeTrial, markFreeTrialUsed, Msg } from '../hooks/useChats';
 import { tarotReply } from '../lib/openai';
 import { startPurchaseFlow } from '../lib/subscriptions';
 
@@ -65,6 +65,21 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
       });
   }, [user?.uid, route?.params?.chatId]);
 
+  // Check global free trial status when user loads
+  useEffect(() => {
+    if (!user) return;
+    
+    console.log('ChatScreen: Checking global free trial status for user:', user.uid);
+    hasUsedFreeTrial(user.uid)
+      .then((used) => {
+        console.log('ChatScreen: User has used free trial:', used);
+        setFreeUsed(used);
+      })
+      .catch((error) => {
+        console.error('ChatScreen: Error checking free trial:', error);
+      });
+  }, [user?.uid]);
+
   // Load existing chat messages when chatId is set
   useEffect(() => {
     if (!user || !chatId) return;
@@ -75,9 +90,6 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
         if (chat && chat.messages && chat.messages.length > 0) {
           console.log('ChatScreen: Loaded', chat.messages.length, 'messages');
           setMessages(chat.messages);
-          // Check if user has already received an assistant reply
-          const hasAssistantReply = chat.messages.some(m => m.role === 'assistant');
-          setFreeUsed(hasAssistantReply);
         } else {
           console.log('ChatScreen: No messages found in chat');
         }
@@ -140,6 +152,12 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
       console.log('onSend: Setting title from assistant message');
       await setTitleFromAssistant(user.uid, chatId, replyText);
       console.log('onSend: Title set successfully');
+      
+      // Mark free trial as used globally (if not subscribed)
+      if (!canChat && !freeUsed) {
+        console.log('onSend: Marking free trial as used globally');
+        await markFreeTrialUsed(user.uid);
+      }
       
       setFreeUsed(true);
       scrollToEnd();
