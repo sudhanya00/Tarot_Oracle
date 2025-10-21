@@ -271,12 +271,17 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#000' }}>
       <ImageBackground source={chatBg} style={{ flex: 1 }} imageStyle={{ opacity: 0.15 }}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+          style={{ flex: 1 }}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        >
           <View style={{ flex: 1, backgroundColor: 'transparent' }}>
             <ScrollView 
               ref={scroller} 
               contentContainerStyle={{ padding: 16, paddingTop: 60, paddingBottom: 24 }}
               showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
             >
               {/* Empty-state hero */}
               {messages.length === 0 && (
