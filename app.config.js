@@ -5,7 +5,7 @@ export default () => ({
   expo: {
     name: "Tarot_Oracle",
     slug: "Tarot_Oracle",
-    owner: "sudhanya",
+    owner: "sudhanyak",
     scheme: "tarotoracle",
     platforms: ["ios", "android", "web"],
     web: {bundler: "metro"},
