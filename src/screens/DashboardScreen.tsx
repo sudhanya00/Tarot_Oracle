@@ -74,9 +74,15 @@ const DashboardScreen: React.FC = () => {
   }, [user?.uid]);
 
   const handleNewChat = () => {
-    if (!canChat) {
+    // Allow creating first chat for free, require subscription only after that
+    const totalChats = Object.values(chatGroups).reduce((sum, group) => sum + group.length, 0);
+    
+    if (!canChat && totalChats > 0) {
+      // User has already created chats and is not subscribed
       return handleSubscribe();
     }
+    
+    // Allow new chat (either subscribed or first free chat)
     navigation.navigate("Chat");
   };
 
