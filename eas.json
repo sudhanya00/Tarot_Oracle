@@ -13,7 +13,7 @@
       },
       "env": {
         "npm_config_legacy_peer_deps": "true",
-        "MODE": "mock"
+        "MODE": "prod"
       },
       "node": "22.11.0"
     },
