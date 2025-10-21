@@ -125,12 +125,22 @@ export async function signInWithGoogleAsync(): Promise<AuthUser> {
       const Constants = await import('expo-constants');
       const webClientId = Constants.default.expoConfig?.extra?.GOOGLE_WEB_CLIENT_ID;
       
+      if (!webClientId) {
+        throw new Error('GOOGLE_WEB_CLIENT_ID not found in configuration');
+      }
+      
       GoogleSignin.configure({
         webClientId: webClientId,
+        offlineAccess: true,
       });
       
       // Check Play Services
-      await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      try {
+        await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+      } catch (error: any) {
+        console.error('Play Services error:', error);
+        throw new Error('Google Play Services not available or needs update');
+      }
       
       // Get user info and ID token
       const signInResult = await GoogleSignin.signIn();

@@ -11,6 +11,10 @@
         "gradleCommand": ":app:assembleDebug",
         "buildType": "apk"
       },
+      "env": {
+        "npm_config_legacy_peer_deps": "true",
+        "MODE": "mock"
+      },
       "node": "22.11.0"
     },
     "preview": {
@@ -27,6 +31,10 @@
     },
     "production": {
       "autoIncrement": true,
+      "env": {
+        "npm_config_legacy_peer_deps": "true",
+        "MODE": "prod"
+      },
       "node": "22.11.0"
     }
   },
