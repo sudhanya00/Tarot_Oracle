@@ -77,8 +77,8 @@ export default () => ({
       [
         "react-native-google-mobile-ads",
         {
-          "android_app_id": "ca-app-pub-2534446887487052~2032082918",
-          "ios_app_id": "ca-app-pub-2534446887487052~2554827090"
+          "androidAppId": "ca-app-pub-2534446887487052~2032082918",
+          "iosAppId": "ca-app-pub-2534446887487052~2554827090"
         }
       ]
     ],
