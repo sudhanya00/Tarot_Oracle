@@ -49,7 +49,7 @@ export default () => ({
       STRIPE_PORTAL_URL: process.env.STRIPE_PORTAL_URL || "",
       // EAS project ID
       eas: {
-        projectId: "e18adf91-3d38-4345-9bf5-5085d46adfef"
+        projectId: "b8b03029-ed5d-4c78-9c7a-a0743f97aae4"
       }
     },
 
