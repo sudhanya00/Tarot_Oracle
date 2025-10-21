@@ -4,7 +4,7 @@ import "dotenv/config";
 export default () => ({
   expo: {
     name: "Tarot Oracle",
-    slug: "tarot_oracle",
+    slug: "Tarot_Oracle",
     owner: "sudhanyak",
     scheme: "tarotoracle",
     platforms: ["ios", "android", "web"],
