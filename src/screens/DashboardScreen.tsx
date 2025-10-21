@@ -21,6 +21,7 @@ import { useAuth } from "../context/AuthProvider";
 import { useSub } from "../context/SubscriptionProvider";
 import { startPurchaseFlow } from "../lib/subscriptions";
 import { listChats, Chat, deleteChat } from "../hooks/useChats";
+import AdBanner from "../lib/admob";
 
 // Helper function to group chats by date
 function groupByDate(chats: Chat[]): Record<string, Chat[]> {
@@ -376,6 +377,11 @@ const DashboardScreen: React.FC = () => {
           </ScrollView>
         </View>
       </ImageBackground>
+      
+      {/* AdMob Banner at bottom */}
+      <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
+        <AdBanner />
+      </View>
     </SafeAreaView>
   );
 };

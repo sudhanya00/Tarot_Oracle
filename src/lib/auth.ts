@@ -80,6 +80,9 @@ export async function emailSignUp(email: string, password: string): Promise<{ us
     }
   } catch (error: any) {
     // Handle Firebase error codes
+    console.log('emailSignUp error:', error);
+    console.log('Error code:', error.code);
+    console.log('Error message:', error.message);
     const errorMessage = error.message || error.toString();
     if (error.code === 'auth/email-already-in-use' || errorMessage.includes('email-already-in-use')) {
       throw new Error('This email is already registered. Please log in.');
