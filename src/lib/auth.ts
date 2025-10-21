@@ -1,6 +1,7 @@
 ﻿import { Platform } from 'react-native';
 import { isMock } from './env';
 
+// Updated auth with proper error handling for React Native Firebase
 export interface AuthUser {
   uid: string;
   email: string | null;

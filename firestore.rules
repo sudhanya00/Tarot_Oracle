@@ -1,0 +1,28 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Subscriptions collection - users can read their own subscription
+    match /subscriptions/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false; // Only Cloud Functions can write subscriptions
+    }
+    
+    // Chats collection - users can read/write their own chats
+    match /chats/{chatId} {
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+    }
+    
+    // Legacy path for user chats (if using nested structure)
+    match /users/{uid}/chats/{chatId} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+
+      // Hard cap messages length to 25 on writes (defense-in-depth)
+      function isValidMessages(messages) {
+        return messages.size() <= 25;
+      }
+
+      allow update: if request.resource.data.messages == null || isValidMessages(request.resource.data.messages);
+    }
+  }
+}
