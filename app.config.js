@@ -28,6 +28,7 @@ export default () => ({
     extra: {
       OPENAI_API_KEY: process.env.OPENAI_API_KEY || "",
       STRIPE_PUBLISHABLE_KEY: process.env.STRIPE_PUBLISHABLE_KEY || "",
+      STRIPE_PRICE_ID: process.env.STRIPE_PRICE_ID || "",
       ADMOB_BANNER_ID: process.env.ADMOB_BANNER_ID || "",
       ADMOB_APP_ID_ANDROID: process.env.ADMOB_APP_ID_ANDROID || "",
       ADMOB_APP_ID_IOS: process.env.ADMOB_APP_ID_IOS || "",
