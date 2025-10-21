@@ -21,16 +21,31 @@ export async function emailSignIn(email: string, password: string): Promise<{ us
     return { user };
   }
 
-  const { initializeFirebase } = await import('./firebase-config');
-  const { auth } = await initializeFirebase();
-  
-  if (Platform.OS === 'web') {
-    const { signInWithEmailAndPassword } = await import('firebase/auth');
-    return signInWithEmailAndPassword(auth!, email, password);
-  } else {
-    // React Native Firebase
-    const result = await auth.signInWithEmailAndPassword(email, password);
-    return { user: result.user };
+  try {
+    const { initializeFirebase } = await import('./firebase-config');
+    const { auth } = await initializeFirebase();
+    
+    if (Platform.OS === 'web') {
+      const { signInWithEmailAndPassword } = await import('firebase/auth');
+      return signInWithEmailAndPassword(auth!, email, password);
+    } else {
+      // React Native Firebase
+      const result = await auth.signInWithEmailAndPassword(email, password);
+      return { user: result.user };
+    }
+  } catch (error: any) {
+    // Handle Firebase error codes
+    const errorMessage = error.message || error.toString();
+    if (error.code === 'auth/user-not-found' || errorMessage.includes('user-not-found')) {
+      throw new Error('No account found with this email.');
+    } else if (error.code === 'auth/wrong-password' || errorMessage.includes('wrong-password')) {
+      throw new Error('Incorrect password.');
+    } else if (error.code === 'auth/invalid-email' || errorMessage.includes('invalid-email')) {
+      throw new Error('Invalid email address.');
+    } else if (error.code === 'auth/user-disabled' || errorMessage.includes('user-disabled')) {
+      throw new Error('This account has been disabled.');
+    }
+    throw new Error(errorMessage);
   }
 }
 
@@ -50,16 +65,29 @@ export async function emailSignUp(email: string, password: string): Promise<{ us
     return { user };
   }
 
-  const { initializeFirebase } = await import('./firebase-config');
-  const { auth } = await initializeFirebase();
-  
-  if (Platform.OS === 'web') {
-    const { createUserWithEmailAndPassword } = await import('firebase/auth');
-    return createUserWithEmailAndPassword(auth!, email, password);
-  } else {
-    // React Native Firebase
-    const result = await auth.createUserWithEmailAndPassword(email, password);
-    return { user: result.user };
+  try {
+    const { initializeFirebase } = await import('./firebase-config');
+    const { auth } = await initializeFirebase();
+    
+    if (Platform.OS === 'web') {
+      const { createUserWithEmailAndPassword } = await import('firebase/auth');
+      return createUserWithEmailAndPassword(auth!, email, password);
+    } else {
+      // React Native Firebase
+      const result = await auth.createUserWithEmailAndPassword(email, password);
+      return { user: result.user };
+    }
+  } catch (error: any) {
+    // Handle Firebase error codes
+    const errorMessage = error.message || error.toString();
+    if (error.code === 'auth/email-already-in-use' || errorMessage.includes('email-already-in-use')) {
+      throw new Error('This email is already registered. Please log in.');
+    } else if (error.code === 'auth/weak-password' || errorMessage.includes('weak-password')) {
+      throw new Error('Password should be at least 6 characters.');
+    } else if (error.code === 'auth/invalid-email' || errorMessage.includes('invalid-email')) {
+      throw new Error('Invalid email address.');
+    }
+    throw new Error(errorMessage);
   }
 }
 
