@@ -140,19 +140,90 @@ export async function mockActivate(uid: string): Promise<void> {
 }
 
 export async function startPurchaseFlow(uid: string): Promise<void> {
-  // For now, just activate the subscription directly for testing
-  // TODO: Replace with actual Stripe payment flow when ready
   console.log('Starting purchase flow for user:', uid);
-  await mockActivate(uid);
   
-  // Uncomment below when Stripe is configured:
-  // if (isMock()) {
-  //   await mockActivate(uid);
-  //   return;
-  // }
-  // const extra = (await import('./env')).extra;
-  // const url = extra.STRIPE_CHECKOUT_URL || extra.STRIPE_PORTAL_URL;
-  // if (!url) throw new Error('Stripe URLs not configured.');
-  // await WebBrowser.openBrowserAsync(url);
+  // In mock mode, just activate directly for testing
+  if (isMock()) {
+    console.log('Mock mode: Activating subscription directly');
+    await mockActivate(uid);
+    return;
+  }
+  
+  try {
+    const extra = (await import('./env')).extra;
+    
+    // Check if Stripe is configured
+    if (!extra.STRIPE_CHECKOUT_URL && !extra.STRIPE_PUBLISHABLE_KEY) {
+      console.warn('Stripe not configured, using mock activation');
+      await mockActivate(uid);
+      return;
+    }
+    
+    // Option 1: Use pre-configured checkout URL (if you have a hosted Stripe page)
+    if (extra.STRIPE_CHECKOUT_URL) {
+      console.log('Opening Stripe Checkout URL:', extra.STRIPE_CHECKOUT_URL);
+      const result = await WebBrowser.openBrowserAsync(
+        `${extra.STRIPE_CHECKOUT_URL}?client_reference_id=${uid}`
+      );
+      console.log('Stripe Checkout result:', result);
+      return;
+    }
+    
+    // Option 2: Create checkout session via Cloud Function (recommended)
+    if (extra.STRIPE_PUBLISHABLE_KEY) {
+      console.log('Creating Stripe Checkout session via Cloud Function');
+      
+      if (Platform.OS === 'web') {
+        // Web: Use Firebase Functions SDK
+        const { httpsCallable } = await import('firebase/functions');
+        const { initializeFirebase } = await import('./firebase-config');
+        const { app } = await initializeFirebase();
+        const { getFunctions } = await import('firebase/functions');
+        const functions = getFunctions(app);
+        
+        const createSession = httpsCallable(functions, 'createStripeCheckoutSession');
+        const { data } = await createSession({ userId: uid }) as any;
+        
+        if (data?.url) {
+          console.log('Opening Stripe Checkout session');
+          await WebBrowser.openBrowserAsync(data.url);
+        } else {
+          throw new Error('No checkout URL returned from server');
+        }
+      } else {
+        // Mobile: Use React Native Firebase Functions
+        try {
+          const functions = (await import('@react-native-firebase/functions')).default;
+          
+          const createSession = functions().httpsCallable('createStripeCheckoutSession');
+          const { data } = await createSession({ userId: uid }) as any;
+          
+          if (data?.url) {
+            console.log('Opening Stripe Checkout session');
+            await WebBrowser.openBrowserAsync(data.url);
+          } else {
+            throw new Error('No checkout URL returned from server');
+          }
+        } catch (importError: any) {
+          // If @react-native-firebase/functions is not available in the build,
+          // fall back to mock activation
+          console.warn('@react-native-firebase/functions not available in this build:', importError?.message);
+          console.log('Falling back to mock activation - requires app rebuild to use real Stripe');
+          throw importError; // Let outer catch handle it
+        }
+      }
+      return;
+    }
+    
+    // Fallback to mock if nothing is configured
+    console.warn('No Stripe configuration found, using mock activation');
+    await mockActivate(uid);
+    
+  } catch (error) {
+    console.error('Purchase flow error:', error);
+    // Fallback to mock activation on error
+    console.log('Error occurred, falling back to mock activation');
+    await mockActivate(uid);
+  }
 }
 

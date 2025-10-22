@@ -11,12 +11,13 @@ import {
   SafeAreaView,
   ActivityIndicator,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Send, Sparkles } from 'lucide-react-native';
 const chatBg = require('../../assets/images/chat_bg.png');
 
 import { useAuth } from '../context/AuthProvider';
 import { useSub } from '../context/SubscriptionProvider';
-import { ensureChat, appendMessage, setTitleFromAssistant, Msg } from '../hooks/useChats';
+import { ensureChat, appendMessage, setTitleFromAssistant, loadChat, hasUsedFreeTrial, markFreeTrialUsed, Msg } from '../hooks/useChats';
 import { tarotReply } from '../lib/openai';
 import { startPurchaseFlow } from '../lib/subscriptions';
 
@@ -27,6 +28,7 @@ type Props = { route?: any };
 const ChatScreen: React.FC<Props> = ({ route }) => {
   const { user } = useAuth();
   const { canChat, refresh } = useSub();
+  const insets = useSafeAreaInsets();
   const [chatId, setChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState('');
@@ -62,6 +64,40 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
         setChatId(fallbackId);
       });
   }, [user?.uid, route?.params?.chatId]);
+
+  // Check global free trial status when user loads
+  useEffect(() => {
+    if (!user) return;
+    
+    console.log('ChatScreen: Checking global free trial status for user:', user.uid);
+    hasUsedFreeTrial(user.uid)
+      .then((used) => {
+        console.log('ChatScreen: User has used free trial:', used);
+        setFreeUsed(used);
+      })
+      .catch((error) => {
+        console.error('ChatScreen: Error checking free trial:', error);
+      });
+  }, [user?.uid]);
+
+  // Load existing chat messages when chatId is set
+  useEffect(() => {
+    if (!user || !chatId) return;
+    
+    console.log('ChatScreen: Loading messages for chatId:', chatId);
+    loadChat(user.uid, chatId)
+      .then((chat) => {
+        if (chat && chat.messages && chat.messages.length > 0) {
+          console.log('ChatScreen: Loaded', chat.messages.length, 'messages');
+          setMessages(chat.messages);
+        } else {
+          console.log('ChatScreen: No messages found in chat');
+        }
+      })
+      .catch((error) => {
+        console.error('ChatScreen: Error loading chat:', error);
+      });
+  }, [user?.uid, chatId]);
 
   const scrollToEnd = () => setTimeout(() => scroller.current?.scrollToEnd({ animated: true }), 100);
 
@@ -117,6 +153,12 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
       await setTitleFromAssistant(user.uid, chatId, replyText);
       console.log('onSend: Title set successfully');
       
+      // Mark free trial as used globally (if not subscribed)
+      if (!canChat && !freeUsed) {
+        console.log('onSend: Marking free trial as used globally');
+        await markFreeTrialUsed(user.uid);
+      }
+      
       setFreeUsed(true);
       scrollToEnd();
       console.log('=== onSend SUCCESS ===');
@@ -166,7 +208,12 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
     
     if (shouldShowSubscribe) {
       return (
-        <View style={{ padding: 16, alignItems: 'center', backgroundColor: 'rgba(0, 0, 0, 0.9)' }}>
+        <View style={{ 
+          padding: 16, 
+          paddingBottom: 16 + insets.bottom, // Add safe area padding for navigation bar
+          alignItems: 'center', 
+          backgroundColor: 'rgba(0, 0, 0, 0.9)' 
+        }}>
           <TouchableOpacity
             onPress={handleSubscribe}
             style={{
@@ -194,7 +241,14 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
     }
 
     return (
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, backgroundColor: 'rgba(0, 0, 0, 0.9)' }}>
+      <View style={{ 
+        flexDirection: 'row', 
+        alignItems: 'center', 
+        gap: 8, 
+        padding: 12, 
+        paddingBottom: 12 + insets.bottom, // Add safe area padding for navigation bar
+        backgroundColor: 'rgba(0, 0, 0, 0.9)' 
+      }}>
         <Input
           value={input}
           onChangeText={setInput}
@@ -235,12 +289,17 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#000' }}>
       <ImageBackground source={chatBg} style={{ flex: 1 }} imageStyle={{ opacity: 0.15 }}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+          style={{ flex: 1 }}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        >
           <View style={{ flex: 1, backgroundColor: 'transparent' }}>
             <ScrollView 
               ref={scroller} 
-              contentContainerStyle={{ padding: 16, paddingBottom: 24 }}
+              contentContainerStyle={{ padding: 16, paddingTop: 60, paddingBottom: 24 }}
               showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
             >
               {/* Empty-state hero */}
               {messages.length === 0 && (

@@ -20,9 +20,6 @@ import LoginScreen from './src/screens/LoginScreen';
 import DashboardScreen from './src/screens/DashboardScreen';
 import ChatScreen from './src/screens/ChatScreen';
 
-// AdMob banner at bottom (placeholder if no ID)
-import AdBanner from './src/lib/admob';
-
 const Stack = createNativeStackNavigator();
 
 export default function App() {

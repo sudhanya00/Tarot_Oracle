@@ -1,0 +1,29 @@
+{"users": [
+{
+  "localId": "1utLHphrAaQ7ngIaobXJsQmSWFt2",
+  "email": "sudhanyakhajuria@outlook.com",
+  "emailVerified": false,
+  "passwordHash": "Wo8vbaXqcMHx7mw/UAy6OZ7AJ1NNHlySOKrFpUm6Pd3gJx/+9dTpM8QM1RWqXEch5EZVH/AKrO+mDMZH9amIiA==",
+  "salt": "2bcM4reErrE6Gw==",
+  "lastSignedInAt": "1761065571420",
+  "createdAt": "1761065571420",
+  "providerUserInfo": []
+},
+{
+  "localId": "SKO3DXXTM9ahzR6pvZJqNofMX762",
+  "email": "sudhanyak357@gmail.com",
+  "emailVerified": true,
+  "displayName": "Sudhanya Khajuria",
+  "photoUrl": "https://lh3.googleusercontent.com/a/ACg8ocL9M5khlzXDJQhaVw9W6SWljdVi826gsCk3g1LC9phibtw4vp8UtQ=s96-c",
+  "lastSignedInAt": "1761065507938",
+  "createdAt": "1760553619064",
+  "providerUserInfo": [
+    {
+      "providerId": "google.com",
+      "rawId": "102090414063254811050",
+      "email": "sudhanyak357@gmail.com",
+      "displayName": "Sudhanya Khajuria",
+      "photoUrl": "https://lh3.googleusercontent.com/a/ACg8ocL9M5khlzXDJQhaVw9W6SWljdVi826gsCk3g1LC9phibtw4vp8UtQ=s96-c"
+    }
+  ]
+}]}

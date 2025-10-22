@@ -21,6 +21,7 @@ import { useAuth } from "../context/AuthProvider";
 import { useSub } from "../context/SubscriptionProvider";
 import { startPurchaseFlow } from "../lib/subscriptions";
 import { listChats, Chat, deleteChat } from "../hooks/useChats";
+import AdBanner from "../lib/admob";
 
 // Helper function to group chats by date
 function groupByDate(chats: Chat[]): Record<string, Chat[]> {
@@ -73,9 +74,8 @@ const DashboardScreen: React.FC = () => {
   }, [user?.uid]);
 
   const handleNewChat = () => {
-    if (!canChat) {
-      return handleSubscribe();
-    }
+    // Always allow creating new chats
+    // ChatScreen will handle showing subscribe button after free message is used
     navigation.navigate("Chat");
   };
 
@@ -238,23 +238,22 @@ const DashboardScreen: React.FC = () => {
             </View>
           </View>
 
-          {/* New Chat button */}
+          {/* New Chat button - Always enabled, ChatScreen handles subscription */}
           <TouchableOpacity
             onPress={handleNewChat}
-            disabled={!canChat}
             style={{
-              backgroundColor: canChat ? "#1e3a8a" : "#1e293b",
+              backgroundColor: "#1e3a8a",
               borderRadius: 16,
               paddingVertical: 16,
               alignItems: "center",
               marginBottom: 24,
               borderWidth: 2,
-              borderColor: canChat ? "#60a5fa" : "#475569",
+              borderColor: "#60a5fa",
             }}
           >
             <Text
               style={{
-                color: canChat ? "#93c5fd" : "#64748b",
+                color: "#93c5fd",
                 fontSize: 18,
                 fontWeight: "600",
                 letterSpacing: 0.5,
@@ -376,6 +375,11 @@ const DashboardScreen: React.FC = () => {
           </ScrollView>
         </View>
       </ImageBackground>
+      
+      {/* AdMob Banner at bottom */}
+      <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0 }}>
+        <AdBanner />
+      </View>
     </SafeAreaView>
   );
 };
