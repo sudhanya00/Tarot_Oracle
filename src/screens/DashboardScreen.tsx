@@ -75,7 +75,7 @@ const DashboardScreen: React.FC = () => {
 
   const handleNewChat = () => {
     // Always allow creating new chats
-    // ChatScreen will handle showing subscribe button after free message is used
+    // ChatScreen will handle showing subscribe button after 24-hour free period
     navigation.navigate("Chat");
   };
 

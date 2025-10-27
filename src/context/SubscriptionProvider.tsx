@@ -30,8 +30,8 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
         return refresh(retries - 1);
       }
       
-      // On persistent error, default to not subscribed (allows first free message)
-      console.log('Could not verify subscription, defaulting to free message mode');
+      // On persistent error, default to not subscribed (allows 24-hour free period)
+      console.log('Could not verify subscription, defaulting to allow 24-hour free period');
       setCanChat(false);
     }
   };

@@ -8,6 +8,7 @@ import {
   Alert,
   Platform,
   StyleSheet,
+  Modal,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 
@@ -19,17 +20,113 @@ import {
   signInWithAppleAsync,
 } from "../lib/auth";
 import { useSub } from "../context/SubscriptionProvider";
+import { useAuth } from "../context/AuthProvider";
+import PrivacyPolicyScreen from "./PrivacyPolicyScreen";
+
+// Helper to check and update privacy policy acceptance
+async function checkPrivacyPolicyAccepted(uid: string): Promise<boolean> {
+  try {
+    const { Platform } = await import('react-native');
+    
+    if (Platform.OS === 'web') {
+      const { doc, getDoc } = await import('firebase/firestore');
+      const { initializeFirebase } = await import('../lib/firebase-config');
+      const { db } = await initializeFirebase();
+      
+      if (!db) return false;
+      
+      const userDoc = await getDoc(doc(db, 'users', uid));
+      return userDoc.exists() ? userDoc.data()?.privacyPolicyAccepted === true : false;
+    } else {
+      const firestore = (await import('@react-native-firebase/firestore')).default;
+      const userDoc = await firestore().collection('users').doc(uid).get();
+      return userDoc.exists ? userDoc.data()?.privacyPolicyAccepted === true : false;
+    }
+  } catch (error) {
+    console.error('Error checking privacy policy acceptance:', error);
+    return false;
+  }
+}
+
+async function markPrivacyPolicyAccepted(uid: string): Promise<void> {
+  try {
+    const { Platform } = await import('react-native');
+    
+    if (Platform.OS === 'web') {
+      const { doc, updateDoc, serverTimestamp } = await import('firebase/firestore');
+      const { initializeFirebase } = await import('../lib/firebase-config');
+      const { db } = await initializeFirebase();
+      
+      if (!db) return;
+      
+      await updateDoc(doc(db, 'users', uid), {
+        privacyPolicyAccepted: true,
+        privacyPolicyAcceptedAt: serverTimestamp()
+      });
+    } else {
+      const rnfFirestore = await import('@react-native-firebase/firestore');
+      await rnfFirestore.default()
+        .collection('users')
+        .doc(uid)
+        .update({
+          privacyPolicyAccepted: true,
+          privacyPolicyAcceptedAt: rnfFirestore.default.FieldValue.serverTimestamp()
+        });
+    }
+  } catch (error) {
+    console.error('Error marking privacy policy accepted:', error);
+    throw error;
+  }
+}
 
 const LoginScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const { refresh } = useSub();
+  const { user, signOutAsync } = useAuth();
   
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");  const handleEmailLogin = async () => {
+  const [password, setPassword] = useState("");
+  const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState(false);
+
+  // Check if logged-in user has accepted privacy policy
+  useEffect(() => {
+    if (user && !pendingNavigation) {
+      checkPrivacyPolicyAccepted(user.uid).then(accepted => {
+        if (!accepted) {
+          setShowPrivacyPolicy(true);
+        } else {
+          navigation.replace("Dashboard");
+        }
+      });
+    }
+  }, [user, pendingNavigation]);
+
+  const handlePrivacyPolicyAccept = async () => {
+    if (user) {
+      try {
+        await markPrivacyPolicyAccepted(user.uid);
+        setShowPrivacyPolicy(false);
+        setPendingNavigation(true);
+        navigation.replace("Dashboard");
+      } catch (error) {
+        Alert.alert("Error", "Failed to save privacy policy acceptance. Please try again.");
+      }
+    }
+  };
+
+  const handlePrivacyPolicyDecline = async () => {
+    setShowPrivacyPolicy(false);
+    await signOutAsync();
+    Alert.alert(
+      "Privacy Policy Required",
+      "You must accept the Privacy Policy to use this app."
+    );
+  };  const handleEmailLogin = async () => {
     try {
       await emailSignIn(email.trim(), password);
       await refresh();
-      navigation.replace("Dashboard");
+      // Privacy policy check happens in useEffect
     } catch (err: any) {
       Alert.alert("Login Error", err?.message || "Could not sign in.");
     }
@@ -39,7 +136,7 @@ const LoginScreen: React.FC = () => {
     try {
       await emailSignUp(email.trim(), password);
       await refresh();
-      navigation.replace("Dashboard");
+      // Privacy policy check happens in useEffect
     } catch (err: any) {
       Alert.alert("Signup Error", err?.message || "Could not create account.");
     }
@@ -58,7 +155,7 @@ const LoginScreen: React.FC = () => {
     try {
       await signInWithGoogleAsync();
       await refresh();
-      navigation.replace("Dashboard");
+      // Privacy policy check happens in useEffect
     } catch (err: any) {
       console.error('Google sign in error:', err);
       Alert.alert("Google Error", err?.message || "Could not sign in with Google.");
@@ -75,7 +172,7 @@ const LoginScreen: React.FC = () => {
       }
       await signInWithAppleAsync();
       await refresh();
-      navigation.replace("Dashboard");
+      // Privacy policy check happens in useEffect
     } catch (err: any) {
       Alert.alert("Apple Error", err?.message || "Could not sign in with Apple.");
     }
@@ -83,6 +180,18 @@ const LoginScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
+      {/* Privacy Policy Modal */}
+      <Modal
+        visible={showPrivacyPolicy}
+        animationType="slide"
+        presentationStyle="fullScreen"
+      >
+        <PrivacyPolicyScreen
+          onAccept={handlePrivacyPolicyAccept}
+          onDecline={handlePrivacyPolicyDecline}
+        />
+      </Modal>
+
       <Text style={styles.title}>Make an Auth!</Text>
 
       {/* Email / Password */}
