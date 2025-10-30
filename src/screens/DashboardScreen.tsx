@@ -167,6 +167,7 @@ const DashboardScreen: React.FC = () => {
     } catch (error) {
       console.error('=== Dashboard handleSubscribe ERROR ===');
       console.error('Error in Dashboard handleSubscribe:', error);
+      Alert.alert('Subscription Error', 'There was an issue starting the subscription process. Please try again or contact support.');
     }
   };
 

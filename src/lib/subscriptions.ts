@@ -221,9 +221,9 @@ export async function startPurchaseFlow(uid: string): Promise<void> {
     
   } catch (error) {
     console.error('Purchase flow error:', error);
-    // Fallback to mock activation on error
-    console.log('Error occurred, falling back to mock activation');
-    await mockActivate(uid);
+    // Do NOT activate subscription on error - this would give free subscriptions
+    // Instead, let the error bubble up so UI can show appropriate message
+    throw error;
   }
 }
 

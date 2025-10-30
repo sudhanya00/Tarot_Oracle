@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   SafeAreaView,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Send, Sparkles } from 'lucide-react-native';
@@ -191,6 +192,7 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
     } catch (error) {
       console.error('=== ChatScreen handleSubscribe ERROR ===');
       console.error('Error in handleSubscribe:', error);
+      Alert.alert('Subscription Error', 'There was an issue starting the subscription process. Please try again or contact support.');
     }
   };
 
