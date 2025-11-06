@@ -140,7 +140,9 @@ const DashboardScreen: React.FC = () => {
     try {
       await signOutAsync();
       console.log('Sign out successful, navigating to Login');
-      navigation.replace('Login');
+  // Indicate we are navigating to Login due to explicit logout so
+  // LoginScreen can avoid showing the privacy policy modal.
+  navigation.replace('Login', { fromLogout: true });
     } catch (error) {
       console.error('Error logging out:', error);
       Alert.alert('Error', 'Failed to log out. Please try again.');

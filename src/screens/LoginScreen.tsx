@@ -10,7 +10,7 @@ import {
   StyleSheet,
   Modal,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 
 import {
   emailSignIn,
@@ -81,6 +81,7 @@ async function markPrivacyPolicyAccepted(uid: string): Promise<void> {
 
 const LoginScreen: React.FC = () => {
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
   const { refresh } = useSub();
   const { user, signOutAsync } = useAuth();
   
@@ -91,6 +92,20 @@ const LoginScreen: React.FC = () => {
 
   // Check if logged-in user has accepted privacy policy
   useEffect(() => {
+    const fromLogout = route?.params?.fromLogout;
+    // If we arrived here from an explicit logout, skip the privacy check
+    if (fromLogout) {
+      // Clear the param so it doesn't affect future logins
+      if (navigation && (navigation as any).setParams) {
+        try {
+          (navigation as any).setParams({ fromLogout: undefined });
+        } catch (e) {
+          // ignore
+        }
+      }
+      return;
+    }
+
     if (user && !pendingNavigation) {
       checkPrivacyPolicyAccepted(user.uid).then(accepted => {
         if (!accepted) {
@@ -100,7 +115,7 @@ const LoginScreen: React.FC = () => {
         }
       });
     }
-  }, [user, pendingNavigation]);
+  }, [user, pendingNavigation, route?.params]);
 
   const handlePrivacyPolicyAccept = async () => {
     if (user) {
