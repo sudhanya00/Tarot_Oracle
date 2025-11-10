@@ -89,13 +89,15 @@ const LoginScreen: React.FC = () => {
   const [password, setPassword] = useState("");
   const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  // Check if logged-in user has accepted privacy policy
+  // Detect logout navigation
   useEffect(() => {
     const fromLogout = route?.params?.fromLogout;
-    // If we arrived here from an explicit logout, skip the privacy check
     if (fromLogout) {
-      // Clear the param so it doesn't affect future logins
+      console.log('LoginScreen: Detected fromLogout param, setting isLoggingOut flag');
+      setIsLoggingOut(true);
+      // Clear the param
       if (navigation && (navigation as any).setParams) {
         try {
           (navigation as any).setParams({ fromLogout: undefined });
@@ -103,19 +105,34 @@ const LoginScreen: React.FC = () => {
           // ignore
         }
       }
+    }
+  }, [route?.params?.fromLogout]);
+
+  // Check if logged-in user has accepted privacy policy
+  useEffect(() => {
+    // Skip privacy check if we're in the middle of logging out
+    if (isLoggingOut) {
+      console.log('LoginScreen: Skipping privacy check due to logout');
       return;
     }
 
     if (user && !pendingNavigation) {
+      console.log('LoginScreen: User detected, checking privacy policy acceptance');
       checkPrivacyPolicyAccepted(user.uid).then(accepted => {
         if (!accepted) {
+          console.log('LoginScreen: Privacy policy not accepted, showing modal');
           setShowPrivacyPolicy(true);
         } else {
+          console.log('LoginScreen: Privacy policy already accepted, navigating to Dashboard');
           navigation.replace("Dashboard");
         }
       });
+    } else if (!user && isLoggingOut) {
+      // User has been cleared after logout, reset the flag
+      console.log('LoginScreen: User cleared after logout, resetting isLoggingOut flag');
+      setIsLoggingOut(false);
     }
-  }, [user, pendingNavigation, route?.params]);
+  }, [user, pendingNavigation, isLoggingOut]);
 
   const handlePrivacyPolicyAccept = async () => {
     if (user) {
