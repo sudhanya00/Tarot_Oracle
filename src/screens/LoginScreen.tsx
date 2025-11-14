@@ -147,6 +147,8 @@ const LoginScreen: React.FC = () => {
       console.log('LoginScreen: Detected fromLogout param, setting isLoggingOut flag');
       setIsLoggingOut(true);
       setShowPrivacyPolicy(false); // Explicitly close modal if it was open
+      setPendingNavigation(false); // Reset pending navigation
+      
       // Clear the param
       if (navigation && (navigation as any).setParams) {
         try {
@@ -155,6 +157,14 @@ const LoginScreen: React.FC = () => {
           // ignore
         }
       }
+      
+      // Reset isLoggingOut flag after a delay to allow the logout flow to complete
+      const timer = setTimeout(() => {
+        console.log('LoginScreen: Resetting isLoggingOut flag after logout completion');
+        setIsLoggingOut(false);
+      }, 1000); // 1 second delay
+      
+      return () => clearTimeout(timer);
     }
   }, [route?.params?.fromLogout]);
 
@@ -181,10 +191,9 @@ const LoginScreen: React.FC = () => {
           navigation.replace("Dashboard");
         }
       });
-    } else if (!user) {
-      // User has been cleared, reset all flags
-      console.log('LoginScreen: User cleared, resetting flags');
-      setIsLoggingOut(false);
+    } else if (!user && !isLoggingOut) {
+      // Only reset flags if user is cleared AND we're not in the middle of logout
+      console.log('LoginScreen: User cleared (not from logout), resetting flags');
       setShowPrivacyPolicy(false);
       setPendingNavigation(false);
     }
