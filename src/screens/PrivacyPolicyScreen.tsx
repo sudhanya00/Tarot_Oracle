@@ -15,7 +15,7 @@ type Props = {
   onDecline: () => void;
 };
 
-const PRIVACY_POLICY_URL = 'https://68fd4fec5040b193b38967c7--tarot-oracleapp.netlify.app/privacy-policy/';
+const PRIVACY_POLICY_URL = 'https://tarotoracleapp.com/privacy-policy/';
 
 const PrivacyPolicyScreen: React.FC<Props> = ({ onAccept, onDecline }) => {
   const [accepted, setAccepted] = useState(false);

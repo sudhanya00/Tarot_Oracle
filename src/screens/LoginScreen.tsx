@@ -48,6 +48,55 @@ async function checkPrivacyPolicyAccepted(uid: string): Promise<boolean> {
   }
 }
 
+async function checkIfFirstLogin(uid: string): Promise<boolean> {
+  try {
+    const { Platform } = await import('react-native');
+    
+    if (Platform.OS === 'web') {
+      const { doc, getDoc } = await import('firebase/firestore');
+      const { initializeFirebase } = await import('../lib/firebase-config');
+      const { db } = await initializeFirebase();
+      
+      if (!db) return false;
+      
+      const userDoc = await getDoc(doc(db, 'users', uid));
+      if (!userDoc.exists()) return false;
+      
+      const userData = userDoc.data();
+      const createdAt = userData?.createdAt;
+      
+      if (!createdAt) return false;
+      
+      // Check if user was created within the last minute (indicates first login)
+      const createdAtMs = createdAt.toMillis ? createdAt.toMillis() : createdAt;
+      const now = Date.now();
+      const oneMinute = 60 * 1000;
+      
+      return (now - createdAtMs) < oneMinute;
+    } else {
+      const firestore = (await import('@react-native-firebase/firestore')).default;
+      const userDoc = await firestore().collection('users').doc(uid).get();
+      
+      if (!userDoc.exists) return false;
+      
+      const userData = userDoc.data();
+      const createdAt = userData?.createdAt;
+      
+      if (!createdAt) return false;
+      
+      // Check if user was created within the last minute
+      const createdAtMs = createdAt.toMillis ? createdAt.toMillis() : createdAt;
+      const now = Date.now();
+      const oneMinute = 60 * 1000;
+      
+      return (now - createdAtMs) < oneMinute;
+    }
+  } catch (error) {
+    console.error('Error checking first login:', error);
+    return false;
+  }
+}
+
 async function markPrivacyPolicyAccepted(uid: string): Promise<void> {
   try {
     const { Platform } = await import('react-native');
@@ -91,12 +140,13 @@ const LoginScreen: React.FC = () => {
   const [pendingNavigation, setPendingNavigation] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  // Detect logout navigation
+  // Detect logout navigation and prevent any privacy modal
   useEffect(() => {
     const fromLogout = route?.params?.fromLogout;
     if (fromLogout) {
       console.log('LoginScreen: Detected fromLogout param, setting isLoggingOut flag');
       setIsLoggingOut(true);
+      setShowPrivacyPolicy(false); // Explicitly close modal if it was open
       // Clear the param
       if (navigation && (navigation as any).setParams) {
         try {
@@ -110,9 +160,13 @@ const LoginScreen: React.FC = () => {
 
   // Check if logged-in user has accepted privacy policy
   useEffect(() => {
-    // Skip privacy check if we're in the middle of logging out
+    // Skip privacy check entirely if we're in logout flow
     if (isLoggingOut) {
       console.log('LoginScreen: Skipping privacy check due to logout');
+      // Ensure modal is closed during logout
+      if (showPrivacyPolicy) {
+        setShowPrivacyPolicy(false);
+      }
       return;
     }
 
@@ -127,10 +181,12 @@ const LoginScreen: React.FC = () => {
           navigation.replace("Dashboard");
         }
       });
-    } else if (!user && isLoggingOut) {
-      // User has been cleared after logout, reset the flag
-      console.log('LoginScreen: User cleared after logout, resetting isLoggingOut flag');
+    } else if (!user) {
+      // User has been cleared, reset all flags
+      console.log('LoginScreen: User cleared, resetting flags');
       setIsLoggingOut(false);
+      setShowPrivacyPolicy(false);
+      setPendingNavigation(false);
     }
   }, [user, pendingNavigation, isLoggingOut]);
 
@@ -140,7 +196,25 @@ const LoginScreen: React.FC = () => {
         await markPrivacyPolicyAccepted(user.uid);
         setShowPrivacyPolicy(false);
         setPendingNavigation(true);
-        navigation.replace("Dashboard");
+        
+        // Check if this is the user's first login
+        const isFirstLogin = await checkIfFirstLogin(user.uid);
+        
+        if (isFirstLogin) {
+          // Show free trial notification
+          Alert.alert(
+            "🎉 Welcome to Tarot Oracle!",
+            "Your 24-hour free trial has started. Explore unlimited tarot readings and discover the wisdom of the cards.\n\nAfter 24 hours, subscribe to continue your mystical journey.",
+            [
+              {
+                text: "Start Reading",
+                onPress: () => navigation.replace("Dashboard")
+              }
+            ]
+          );
+        } else {
+          navigation.replace("Dashboard");
+        }
       } catch (error) {
         Alert.alert("Error", "Failed to save privacy policy acceptance. Please try again.");
       }
