@@ -345,17 +345,13 @@ export async function deleteChat(uid: string, chatId: string): Promise<void> {
   }
 }
 
-// Check if user has used their free trial (1 message total)
-export async function hasUsedFreeTrial(uid: string): Promise<boolean> {
-  console.log('hasUsedFreeTrial: Checking for uid:', uid);
+// Check if user is within 24 hours of signup (free trial period)
+export async function isWithin24HoursOfSignup(uid: string): Promise<boolean> {
+  console.log('isWithin24HoursOfSignup: Checking for uid:', uid);
   
   if (isMock()) {
-    // In mock mode, check if user has any chats with assistant messages
-    if (!mockChats[uid]) return false;
-    const chats = Object.values(mockChats[uid]);
-    return chats.some(chat => 
-      chat.messages?.some(m => m.role === 'assistant')
-    );
+    // In mock mode, always allow (for testing)
+    return true;
   }
 
   try {
@@ -364,52 +360,69 @@ export async function hasUsedFreeTrial(uid: string): Promise<boolean> {
     if (Platform.OS === 'web') {
       const { doc, getDoc } = await import('firebase/firestore');
       const userDoc = await getDoc(doc(db, 'users', uid));
-      const hasUsed = userDoc.exists() ? userDoc.data()?.hasUsedFreeTrial === true : false;
-      console.log('hasUsedFreeTrial (web):', hasUsed);
-      return hasUsed;
+      
+      if (!userDoc.exists()) {
+        console.log('isWithin24HoursOfSignup (web): User doc does not exist');
+        return true; // Allow if user doc doesn't exist yet
+      }
+      
+      const userData = userDoc.data();
+      const createdAt = userData?.createdAt;
+      
+      if (!createdAt) {
+        console.log('isWithin24HoursOfSignup (web): No createdAt timestamp, allowing');
+        return true; // Allow if no timestamp
+      }
+      
+      // Firebase Timestamp has toMillis() method
+      const createdAtMs = createdAt.toMillis ? createdAt.toMillis() : createdAt;
+      const now = Date.now();
+      const hoursSinceSignup = (now - createdAtMs) / (1000 * 60 * 60);
+      
+      console.log('isWithin24HoursOfSignup (web): Hours since signup:', hoursSinceSignup);
+      return hoursSinceSignup < 24;
     } else {
       // Mobile: Use React Native Firebase
       const userDoc = await db.collection('users').doc(uid).get();
-      const hasUsed = userDoc.exists ? userDoc.data()?.hasUsedFreeTrial === true : false;
-      console.log('hasUsedFreeTrial (mobile):', hasUsed);
-      return hasUsed;
+      
+      if (!userDoc.exists) {
+        console.log('isWithin24HoursOfSignup (mobile): User doc does not exist');
+        return true; // Allow if user doc doesn't exist yet
+      }
+      
+      const userData = userDoc.data();
+      const createdAt = userData?.createdAt;
+      
+      if (!createdAt) {
+        console.log('isWithin24HoursOfSignup (mobile): No createdAt timestamp, allowing');
+        return true; // Allow if no timestamp
+      }
+      
+      // Firebase Timestamp has toMillis() method
+      const createdAtMs = createdAt.toMillis ? createdAt.toMillis() : createdAt;
+      const now = Date.now();
+      const hoursSinceSignup = (now - createdAtMs) / (1000 * 60 * 60);
+      
+      console.log('isWithin24HoursOfSignup (mobile): Hours since signup:', hoursSinceSignup);
+      return hoursSinceSignup < 24;
     }
   } catch (error) {
-    console.error('hasUsedFreeTrial: Error:', error);
-    return false;
+    console.error('isWithin24HoursOfSignup: Error:', error);
+    return true; // On error, allow access (fail open)
   }
 }
 
-// Mark that user has used their free trial
-export async function markFreeTrialUsed(uid: string): Promise<void> {
-  console.log('markFreeTrialUsed: Marking for uid:', uid);
-  
-  if (isMock()) {
-    console.log('markFreeTrialUsed: Mock mode, no-op');
-    return;
-  }
+// Legacy function - kept for backwards compatibility but deprecated
+export async function hasUsedFreeTrial(uid: string): Promise<boolean> {
+  console.log('hasUsedFreeTrial: DEPRECATED - use isWithin24HoursOfSignup instead');
+  // Return the inverse of isWithin24HoursOfSignup
+  const within24Hours = await isWithin24HoursOfSignup(uid);
+  return !within24Hours;
+}
 
-  try {
-    const db = await getFirestore();
-    
-    if (Platform.OS === 'web') {
-      const { doc, updateDoc, serverTimestamp } = await import('firebase/firestore');
-      await updateDoc(doc(db, 'users', uid), {
-        hasUsedFreeTrial: true,
-        freeTrialUsedAt: serverTimestamp()
-      });
-      console.log('markFreeTrialUsed (web): Updated successfully');
-    } else {
-      // Mobile: Use React Native Firebase
-      const rnfFirestore = await import('@react-native-firebase/firestore');
-      await db.collection('users').doc(uid).update({
-        hasUsedFreeTrial: true,
-        freeTrialUsedAt: rnfFirestore.default.FieldValue.serverTimestamp()
-      });
-      console.log('markFreeTrialUsed (mobile): Updated successfully');
-    }
-  } catch (error) {
-    console.error('markFreeTrialUsed: Error:', error);
-    throw error;
-  }
+// Legacy function - kept for backwards compatibility but deprecated
+export async function markFreeTrialUsed(uid: string): Promise<void> {
+  console.log('markFreeTrialUsed: DEPRECATED - no longer needed with 24-hour window');
+  // No-op: we don't need to mark anything with time-based logic
+  return;
 }

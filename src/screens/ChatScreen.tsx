@@ -17,7 +17,7 @@ const chatBg = require('../../assets/images/chat_bg.png');
 
 import { useAuth } from '../context/AuthProvider';
 import { useSub } from '../context/SubscriptionProvider';
-import { ensureChat, appendMessage, setTitleFromAssistant, loadChat, hasUsedFreeTrial, markFreeTrialUsed, Msg } from '../hooks/useChats';
+import { ensureChat, appendMessage, setTitleFromAssistant, loadChat, isWithin24HoursOfSignup, Msg } from '../hooks/useChats';
 import { tarotReply } from '../lib/openai';
 import { startPurchaseFlow } from '../lib/subscriptions';
 
@@ -32,7 +32,7 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
   const [chatId, setChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState('');
-  const [freeUsed, setFreeUsed] = useState(false);
+  const [within24Hours, setWithin24Hours] = useState(true); // Default to true (allow chat)
   const [loading, setLoading] = useState(false);
 
   const scroller = useRef<ScrollView>(null);
@@ -65,18 +65,18 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
       });
   }, [user?.uid, route?.params?.chatId]);
 
-  // Check global free trial status when user loads
+  // Check if user is within 24 hours of signup when user loads
   useEffect(() => {
     if (!user) return;
     
-    console.log('ChatScreen: Checking global free trial status for user:', user.uid);
-    hasUsedFreeTrial(user.uid)
-      .then((used) => {
-        console.log('ChatScreen: User has used free trial:', used);
-        setFreeUsed(used);
+    console.log('ChatScreen: Checking 24-hour window for user:', user.uid);
+    isWithin24HoursOfSignup(user.uid)
+      .then((within) => {
+        console.log('ChatScreen: User is within 24 hours of signup:', within);
+        setWithin24Hours(within);
       })
       .catch((error) => {
-        console.error('ChatScreen: Error checking free trial:', error);
+        console.error('ChatScreen: Error checking 24-hour window:', error);
       });
   }, [user?.uid]);
 
@@ -153,13 +153,8 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
       await setTitleFromAssistant(user.uid, chatId, replyText);
       console.log('onSend: Title set successfully');
       
-      // Mark free trial as used globally (if not subscribed)
-      if (!canChat && !freeUsed) {
-        console.log('onSend: Marking free trial as used globally');
-        await markFreeTrialUsed(user.uid);
-      }
+      // No need to mark anything - 24-hour window is time-based
       
-      setFreeUsed(true);
       scrollToEnd();
       console.log('=== onSend SUCCESS ===');
     } catch (error) {
@@ -176,7 +171,7 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
   const handleSubscribe = async () => {
     console.log('=== ChatScreen handleSubscribe START ===');
     console.log('handleSubscribe: user exists:', !!user);
-    console.log('handleSubscribe: current canChat:', canChat, 'freeUsed:', freeUsed);
+    console.log('handleSubscribe: current canChat:', canChat, 'within24Hours:', within24Hours);
     
     if (!user) {
       console.log('handleSubscribe: No user, aborting');
@@ -200,11 +195,11 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
   };
 
   const renderInputBar = () => {
-    // Show Subscribe button if: user is not subscribed AND has used their free message
-    // Show input if: user is subscribed OR hasn't used free message yet
-    const shouldShowSubscribe = !canChat && freeUsed;
+    // Show Subscribe button if: user is not subscribed AND is outside 24-hour window
+    // Show input if: user is subscribed OR is within 24-hour window
+    const shouldShowSubscribe = !canChat && !within24Hours;
     
-    console.log('renderInputBar: canChat =', canChat, 'freeUsed =', freeUsed, 'shouldShowSubscribe =', shouldShowSubscribe);
+    console.log('renderInputBar: canChat =', canChat, 'within24Hours =', within24Hours, 'shouldShowSubscribe =', shouldShowSubscribe);
     
     if (shouldShowSubscribe) {
       return (

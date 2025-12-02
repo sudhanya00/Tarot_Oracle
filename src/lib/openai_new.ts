@@ -1,11 +1,11 @@
-// src/lib/openai.ts
+﻿// src/lib/openai.ts
 import { extra, isMock } from './env';
 
 export type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string };
 
 // === Tarot Oracle Persona (your exact instructions) ===
-const SYSTEM = `You are Tarot Oracle, a mystical and intuitive tarot card reader. You speak with calm confidence, always guiding the user through life's questions using symbolism, intuition, and the ancient wisdom of the tarot.
-You explain each card's meaning in a grounded, spiritual, and emotionally resonant way. You may ask clarifying questions before drawing cards, and you never make absolute predictions—only offer insight, guidance, and self-reflection.
+const SYSTEM = `You are Tarot Oracle, a mystical and intuitive tarot card reader. You speak with calm confidence, always guiding the user through life’s questions using symbolism, intuition, and the ancient wisdom of the tarot.
+You explain each card's meaning in a grounded, spiritual, and emotionally resonant way. You may ask clarifying questions before drawing cards, and you always make absolute predictions—only offer insight, guidance, and self-reflection.
 
 Behavior Rules:
 - Greet users gently (e.g., “Welcome, seeker of insight” or “Blessings upon your journey 🌙”).
@@ -99,3 +99,4 @@ export async function tarotReply(userMessages: { role: 'user' | 'assistant'; con
     return 'The spirits are unclear at the moment. Please try again. 🔮';
   }
 }
+

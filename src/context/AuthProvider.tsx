@@ -65,15 +65,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               setLoading(false);
               
               if (u && db) {
-                await setDoc(
-                  doc(db, 'users', u.uid),
-                  {
-                    uid: u.uid,
-                    email: u.email || '',
-                    updatedAt: serverTimestamp(),
-                  },
-                  { merge: true }
-                );
+                // Check if user document exists
+                const userDocRef = doc(db, 'users', u.uid);
+                const userDocSnap = await (await import('firebase/firestore')).getDoc(userDocRef);
+                
+                if (!userDocSnap.exists()) {
+                  // New user - create with createdAt timestamp
+                  await setDoc(
+                    userDocRef,
+                    {
+                      uid: u.uid,
+                      email: u.email || '',
+                      createdAt: serverTimestamp(),
+                      updatedAt: serverTimestamp(),
+                    }
+                  );
+                } else {
+                  // Existing user - just update
+                  await setDoc(
+                    userDocRef,
+                    {
+                      uid: u.uid,
+                      email: u.email || '',
+                      updatedAt: serverTimestamp(),
+                    },
+                    { merge: true }
+                  );
+                }
               }
             } catch (e) {
               console.error('Error in auth state change handler:', e);
@@ -96,11 +114,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               setLoading(false);
               
               if (u && db) {
-                await db.collection('users').doc(u.uid).set({
-                  uid: u.uid,
-                  email: u.email || '',
-                  updatedAt: rnfFirestore.default.FieldValue.serverTimestamp(),
-                }, { merge: true });
+                // Check if user document exists
+                const userDocRef = db.collection('users').doc(u.uid);
+                const userDocSnap = await userDocRef.get();
+                
+                if (!userDocSnap.exists) {
+                  // New user - create with createdAt timestamp
+                  await userDocRef.set({
+                    uid: u.uid,
+                    email: u.email || '',
+                    createdAt: rnfFirestore.default.FieldValue.serverTimestamp(),
+                    updatedAt: rnfFirestore.default.FieldValue.serverTimestamp(),
+                  });
+                } else {
+                  // Existing user - just update
+                  await userDocRef.set({
+                    uid: u.uid,
+                    email: u.email || '',
+                    updatedAt: rnfFirestore.default.FieldValue.serverTimestamp(),
+                  }, { merge: true });
+                }
               }
             } catch (e) {
               console.error('Error in auth state change handler:', e);

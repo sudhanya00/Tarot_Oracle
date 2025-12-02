@@ -166,6 +166,10 @@ export async function startPurchaseFlow(uid: string): Promise<void> {
         `${extra.STRIPE_CHECKOUT_URL}?client_reference_id=${uid}`
       );
       console.log('Stripe Checkout result:', result);
+      // Do NOT auto-activate on dismiss - wait for webhook
+      if (result.type === 'dismiss' || result.type === 'cancel') {
+        console.log('User dismissed/cancelled Stripe checkout - not activating');
+      }
       return;
     }
     
@@ -182,11 +186,22 @@ export async function startPurchaseFlow(uid: string): Promise<void> {
         const functions = getFunctions(app);
         
         const createSession = httpsCallable(functions, 'createStripeCheckoutSession');
-        const { data } = await createSession({ userId: uid }) as any;
+        
+        // Add timeout for cloud function call
+        const sessionPromise = createSession({ userId: uid });
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Cloud function timeout - checkout session creation took too long')), 10000);
+        });
+        
+        const { data } = await Promise.race([sessionPromise, timeoutPromise]) as any;
         
         if (data?.url) {
           console.log('Opening Stripe Checkout session');
-          await WebBrowser.openBrowserAsync(data.url);
+          const result = await WebBrowser.openBrowserAsync(data.url);
+          // Do NOT auto-activate on dismiss - wait for webhook
+          if (result.type === 'dismiss' || result.type === 'cancel') {
+            console.log('User dismissed/cancelled Stripe checkout - not activating');
+          }
         } else {
           throw new Error('No checkout URL returned from server');
         }
@@ -196,34 +211,43 @@ export async function startPurchaseFlow(uid: string): Promise<void> {
           const functions = (await import('@react-native-firebase/functions')).default;
           
           const createSession = functions().httpsCallable('createStripeCheckoutSession');
-          const { data } = await createSession({ userId: uid }) as any;
+          
+          // Add timeout for cloud function call
+          const sessionPromise = createSession({ userId: uid });
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Cloud function timeout - checkout session creation took too long')), 10000);
+          });
+          
+          const { data } = await Promise.race([sessionPromise, timeoutPromise]) as any;
           
           if (data?.url) {
             console.log('Opening Stripe Checkout session');
-            await WebBrowser.openBrowserAsync(data.url);
+            const result = await WebBrowser.openBrowserAsync(data.url);
+            // Do NOT auto-activate on dismiss - wait for webhook
+            if (result.type === 'dismiss' || result.type === 'cancel') {
+              console.log('User dismissed/cancelled Stripe checkout - not activating');
+            }
           } else {
             throw new Error('No checkout URL returned from server');
           }
         } catch (importError: any) {
           // If @react-native-firebase/functions is not available in the build,
-          // fall back to mock activation
-          console.warn('@react-native-firebase/functions not available in this build:', importError?.message);
-          console.log('Falling back to mock activation - requires app rebuild to use real Stripe');
-          throw importError; // Let outer catch handle it
+          // throw error instead of auto-activating
+          console.error('@react-native-firebase/functions not available in this build:', importError?.message);
+          throw new Error('Stripe integration not available. Please rebuild the app with proper Firebase configuration.');
         }
       }
       return;
     }
     
-    // Fallback to mock if nothing is configured
-    console.warn('No Stripe configuration found, using mock activation');
-    await mockActivate(uid);
+    // Only use mock activation as absolute fallback (should not normally reach here)
+    console.warn('No Stripe configuration found - this should not happen in production');
+    throw new Error('Payment system not configured. Please contact support.');
     
   } catch (error) {
     console.error('Purchase flow error:', error);
-    // Fallback to mock activation on error
-    console.log('Error occurred, falling back to mock activation');
-    await mockActivate(uid);
+    // DO NOT fallback to mock activation on error - let it fail properly
+    throw error;
   }
 }
 
