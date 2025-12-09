@@ -60,6 +60,7 @@ const DashboardScreen: React.FC = () => {
     Older: [],
   });
   const [loading, setLoading] = useState(true);
+  const [subscribeLoading, setSubscribeLoading] = useState(false);
 
   const loadChats = async () => {
     if (!user) return;
@@ -75,7 +76,7 @@ const DashboardScreen: React.FC = () => {
 
   const handleNewChat = () => {
     // Always allow creating new chats
-    // ChatScreen will handle showing subscribe button after free message is used
+    // ChatScreen will handle showing subscribe button after 24-hour free period
     navigation.navigate("Chat");
   };
 
@@ -139,7 +140,9 @@ const DashboardScreen: React.FC = () => {
     try {
       await signOutAsync();
       console.log('Sign out successful, navigating to Login');
-      navigation.replace('Login');
+  // Indicate we are navigating to Login due to explicit logout so
+  // LoginScreen can avoid showing the privacy policy modal.
+  navigation.replace('Login', { fromLogout: true });
     } catch (error) {
       console.error('Error logging out:', error);
       Alert.alert('Error', 'Failed to log out. Please try again.');
@@ -154,6 +157,14 @@ const DashboardScreen: React.FC = () => {
       return;
     }
     
+    // Prevent multiple clicks
+    if (subscribeLoading) {
+      console.log('Dashboard handleSubscribe: Already loading, aborting');
+      return;
+    }
+    
+    setSubscribeLoading(true);
+    
     try {
       console.log('Dashboard handleSubscribe: Calling startPurchaseFlow...');
       await startPurchaseFlow(user.uid);
@@ -167,6 +178,8 @@ const DashboardScreen: React.FC = () => {
     } catch (error) {
       console.error('=== Dashboard handleSubscribe ERROR ===');
       console.error('Error in Dashboard handleSubscribe:', error);
+    } finally {
+      setSubscribeLoading(false);
     }
   };
 
@@ -220,19 +233,24 @@ const DashboardScreen: React.FC = () => {
 
               <TouchableOpacity
                 onPress={handleSubscribe}
+                disabled={subscribeLoading}
                 style={{
-                  backgroundColor: "#581c87",
+                  backgroundColor: subscribeLoading ? "rgba(88, 28, 135, 0.5)" : "#581c87",
                   borderRadius: 20,
                   paddingHorizontal: 16,
                   paddingVertical: 10,
                   flexDirection: "row",
                   alignItems: "center",
                   borderWidth: 1,
-                  borderColor: "#a855f7",
+                  borderColor: subscribeLoading ? "rgba(168, 85, 247, 0.5)" : "#a855f7",
+                  gap: 8,
                 }}
               >
+                {subscribeLoading && (
+                  <ActivityIndicator size="small" color="#e9d5ff" />
+                )}
                 <Text style={{ color: "#e9d5ff", fontSize: 15, fontWeight: "600" }}>
-                  Enlighten 🔮
+                  {subscribeLoading ? "Loading..." : "Enlighten 🔮"}
                 </Text>
               </TouchableOpacity>
             </View>

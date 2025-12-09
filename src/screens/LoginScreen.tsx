@@ -8,8 +8,9 @@ import {
   Alert,
   Platform,
   StyleSheet,
+  Modal,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 
 import {
   emailSignIn,
@@ -19,17 +20,228 @@ import {
   signInWithAppleAsync,
 } from "../lib/auth";
 import { useSub } from "../context/SubscriptionProvider";
+import { useAuth } from "../context/AuthProvider";
+import PrivacyPolicyScreen from "./PrivacyPolicyScreen";
+
+// Helper to check and update privacy policy acceptance
+async function checkPrivacyPolicyAccepted(uid: string): Promise<boolean> {
+  try {
+    const { Platform } = await import('react-native');
+    
+    if (Platform.OS === 'web') {
+      const { doc, getDoc } = await import('firebase/firestore');
+      const { initializeFirebase } = await import('../lib/firebase-config');
+      const { db } = await initializeFirebase();
+      
+      if (!db) return false;
+      
+      const userDoc = await getDoc(doc(db, 'users', uid));
+      return userDoc.exists() ? userDoc.data()?.privacyPolicyAccepted === true : false;
+    } else {
+      const firestore = (await import('@react-native-firebase/firestore')).default;
+      const userDoc = await firestore().collection('users').doc(uid).get();
+      return userDoc.exists ? userDoc.data()?.privacyPolicyAccepted === true : false;
+    }
+  } catch (error) {
+    console.error('Error checking privacy policy acceptance:', error);
+    return false;
+  }
+}
+
+async function checkIfFirstLogin(uid: string): Promise<boolean> {
+  try {
+    const { Platform } = await import('react-native');
+    
+    if (Platform.OS === 'web') {
+      const { doc, getDoc } = await import('firebase/firestore');
+      const { initializeFirebase } = await import('../lib/firebase-config');
+      const { db } = await initializeFirebase();
+      
+      if (!db) return false;
+      
+      const userDoc = await getDoc(doc(db, 'users', uid));
+      if (!userDoc.exists()) return false;
+      
+      const userData = userDoc.data();
+      const createdAt = userData?.createdAt;
+      
+      if (!createdAt) return false;
+      
+      // Check if user was created within the last minute (indicates first login)
+      const createdAtMs = createdAt.toMillis ? createdAt.toMillis() : createdAt;
+      const now = Date.now();
+      const oneMinute = 60 * 1000;
+      
+      return (now - createdAtMs) < oneMinute;
+    } else {
+      const firestore = (await import('@react-native-firebase/firestore')).default;
+      const userDoc = await firestore().collection('users').doc(uid).get();
+      
+      if (!userDoc.exists) return false;
+      
+      const userData = userDoc.data();
+      const createdAt = userData?.createdAt;
+      
+      if (!createdAt) return false;
+      
+      // Check if user was created within the last minute
+      const createdAtMs = createdAt.toMillis ? createdAt.toMillis() : createdAt;
+      const now = Date.now();
+      const oneMinute = 60 * 1000;
+      
+      return (now - createdAtMs) < oneMinute;
+    }
+  } catch (error) {
+    console.error('Error checking first login:', error);
+    return false;
+  }
+}
+
+async function markPrivacyPolicyAccepted(uid: string): Promise<void> {
+  try {
+    const { Platform } = await import('react-native');
+    
+    if (Platform.OS === 'web') {
+      const { doc, updateDoc, serverTimestamp } = await import('firebase/firestore');
+      const { initializeFirebase } = await import('../lib/firebase-config');
+      const { db } = await initializeFirebase();
+      
+      if (!db) return;
+      
+      await updateDoc(doc(db, 'users', uid), {
+        privacyPolicyAccepted: true,
+        privacyPolicyAcceptedAt: serverTimestamp()
+      });
+    } else {
+      const rnfFirestore = await import('@react-native-firebase/firestore');
+      await rnfFirestore.default()
+        .collection('users')
+        .doc(uid)
+        .update({
+          privacyPolicyAccepted: true,
+          privacyPolicyAcceptedAt: rnfFirestore.default.FieldValue.serverTimestamp()
+        });
+    }
+  } catch (error) {
+    console.error('Error marking privacy policy accepted:', error);
+    throw error;
+  }
+}
 
 const LoginScreen: React.FC = () => {
   const navigation = useNavigation<any>();
+  const route = useRoute<any>();
   const { refresh } = useSub();
+  const { user, signOutAsync } = useAuth();
   
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");  const handleEmailLogin = async () => {
+  const [password, setPassword] = useState("");
+  const [showPrivacyPolicy, setShowPrivacyPolicy] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  // Detect logout navigation and prevent any privacy modal
+  useEffect(() => {
+    const fromLogout = route?.params?.fromLogout;
+    if (fromLogout) {
+      console.log('LoginScreen: Detected fromLogout param, setting isLoggingOut flag');
+      setIsLoggingOut(true);
+      setShowPrivacyPolicy(false); // Explicitly close modal if it was open
+      setPendingNavigation(false); // Reset pending navigation
+      
+      // Clear the param
+      if (navigation && (navigation as any).setParams) {
+        try {
+          (navigation as any).setParams({ fromLogout: undefined });
+        } catch (e) {
+          // ignore
+        }
+      }
+      
+      // Reset isLoggingOut flag after a delay to allow the logout flow to complete
+      const timer = setTimeout(() => {
+        console.log('LoginScreen: Resetting isLoggingOut flag after logout completion');
+        setIsLoggingOut(false);
+      }, 1000); // 1 second delay
+      
+      return () => clearTimeout(timer);
+    }
+  }, [route?.params?.fromLogout]);
+
+  // Check if logged-in user has accepted privacy policy
+  useEffect(() => {
+    // Skip privacy check entirely if we're in logout flow
+    if (isLoggingOut) {
+      console.log('LoginScreen: Skipping privacy check due to logout');
+      // Ensure modal is closed during logout
+      if (showPrivacyPolicy) {
+        setShowPrivacyPolicy(false);
+      }
+      return;
+    }
+
+    if (user && !pendingNavigation) {
+      console.log('LoginScreen: User detected, checking privacy policy acceptance');
+      checkPrivacyPolicyAccepted(user.uid).then(accepted => {
+        if (!accepted) {
+          console.log('LoginScreen: Privacy policy not accepted, showing modal');
+          setShowPrivacyPolicy(true);
+        } else {
+          console.log('LoginScreen: Privacy policy already accepted, navigating to Dashboard');
+          navigation.replace("Dashboard");
+        }
+      });
+    } else if (!user && !isLoggingOut) {
+      // Only reset flags if user is cleared AND we're not in the middle of logout
+      console.log('LoginScreen: User cleared (not from logout), resetting flags');
+      setShowPrivacyPolicy(false);
+      setPendingNavigation(false);
+    }
+  }, [user, pendingNavigation, isLoggingOut]);
+
+  const handlePrivacyPolicyAccept = async () => {
+    if (user) {
+      try {
+        await markPrivacyPolicyAccepted(user.uid);
+        setShowPrivacyPolicy(false);
+        setPendingNavigation(true);
+        
+        // Check if this is the user's first login
+        const isFirstLogin = await checkIfFirstLogin(user.uid);
+        
+        if (isFirstLogin) {
+          // Show free trial notification
+          Alert.alert(
+            "🎉 Welcome to Tarot Oracle!",
+            "Your 24-hour free trial has started. Explore unlimited tarot readings and discover the wisdom of the cards.\n\nAfter 24 hours, subscribe to continue your mystical journey.",
+            [
+              {
+                text: "Start Reading",
+                onPress: () => navigation.replace("Dashboard")
+              }
+            ]
+          );
+        } else {
+          navigation.replace("Dashboard");
+        }
+      } catch (error) {
+        Alert.alert("Error", "Failed to save privacy policy acceptance. Please try again.");
+      }
+    }
+  };
+
+  const handlePrivacyPolicyDecline = async () => {
+    setShowPrivacyPolicy(false);
+    await signOutAsync();
+    Alert.alert(
+      "Privacy Policy Required",
+      "You must accept the Privacy Policy to use this app."
+    );
+  };  const handleEmailLogin = async () => {
     try {
       await emailSignIn(email.trim(), password);
       await refresh();
-      navigation.replace("Dashboard");
+      // Privacy policy check happens in useEffect
     } catch (err: any) {
       Alert.alert("Login Error", err?.message || "Could not sign in.");
     }
@@ -39,7 +251,7 @@ const LoginScreen: React.FC = () => {
     try {
       await emailSignUp(email.trim(), password);
       await refresh();
-      navigation.replace("Dashboard");
+      // Privacy policy check happens in useEffect
     } catch (err: any) {
       Alert.alert("Signup Error", err?.message || "Could not create account.");
     }
@@ -58,7 +270,7 @@ const LoginScreen: React.FC = () => {
     try {
       await signInWithGoogleAsync();
       await refresh();
-      navigation.replace("Dashboard");
+      // Privacy policy check happens in useEffect
     } catch (err: any) {
       console.error('Google sign in error:', err);
       Alert.alert("Google Error", err?.message || "Could not sign in with Google.");
@@ -75,7 +287,7 @@ const LoginScreen: React.FC = () => {
       }
       await signInWithAppleAsync();
       await refresh();
-      navigation.replace("Dashboard");
+      // Privacy policy check happens in useEffect
     } catch (err: any) {
       Alert.alert("Apple Error", err?.message || "Could not sign in with Apple.");
     }
@@ -83,6 +295,18 @@ const LoginScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
+      {/* Privacy Policy Modal */}
+      <Modal
+        visible={showPrivacyPolicy}
+        animationType="slide"
+        presentationStyle="fullScreen"
+      >
+        <PrivacyPolicyScreen
+          onAccept={handlePrivacyPolicyAccept}
+          onDecline={handlePrivacyPolicyDecline}
+        />
+      </Modal>
+
       <Text style={styles.title}>Make an Auth!</Text>
 
       {/* Email / Password */}
