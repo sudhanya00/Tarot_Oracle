@@ -1,22 +1,18 @@
 // App.tsx
-import "./global.css"; // required for NativeWind on web
-// Main entry point for the Tarot Oracle application.
-
+import "./global.css"; 
 import React, { useEffect, useState } from 'react';
 import { View, ActivityIndicator, StatusBar } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
-// Initialize Firebase ONCE before anything else
 import { initializeFirebase } from './src/lib/firebase-config';
-
-// Providers
 import { AuthProvider } from './src/context/AuthProvider';
 import { SubscriptionProvider } from './src/context/SubscriptionProvider';
 
 // Screens
 import WelcomeScreen from './src/screens/WelcomeScreen';
 import LoginScreen from './src/screens/LoginScreen';
+import SignUpScreen from './src/screens/SignUpScreen'; // 1. Import your new screen
 import DashboardScreen from './src/screens/DashboardScreen';
 import ChatScreen from './src/screens/ChatScreen';
 
@@ -26,22 +22,20 @@ export default function App() {
   const [firebaseReady, setFirebaseReady] = useState(false);
 
   useEffect(() => {
-    // Initialize Firebase once at app startup
     initializeFirebase()
       .then(() => {
-        console.log('Firebase initialized at app startup');
         setFirebaseReady(true);
       })
       .catch((error) => {
         console.error('Failed to initialize Firebase:', error);
-        setFirebaseReady(true); // Continue anyway
+        setFirebaseReady(true); 
       });
   }, []);
 
   if (!firebaseReady) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' }}>
+        <ActivityIndicator size="large" color="#9fc5ff" />
       </View>
     );
   }
@@ -55,6 +49,10 @@ export default function App() {
             <Stack.Navigator initialRouteName="Welcome" screenOptions={{ headerShown: false }}>
               <Stack.Screen name="Welcome" component={WelcomeScreen} />
               <Stack.Screen name="Login" component={LoginScreen} />
+              
+              {/* 2. Register SignUpScreen with the exact name used in LoginScreen */}
+              <Stack.Screen name="SignUpScreen" component={SignUpScreen} /> 
+              
               <Stack.Screen name="Dashboard" component={DashboardScreen} />
               <Stack.Screen name="Chat" component={ChatScreen} />
             </Stack.Navigator>

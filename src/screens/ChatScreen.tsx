@@ -10,277 +10,187 @@ import {
   TouchableOpacity,
   SafeAreaView,
   ActivityIndicator,
+  Animated,
+  LayoutAnimation,
+  UIManager,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Send, Sparkles } from 'lucide-react-native';
+
 const chatBg = require('../../assets/images/chat_bg.png');
 
 import { useAuth } from '../context/AuthProvider';
 import { useSub } from '../context/SubscriptionProvider';
-import { ensureChat, appendMessage, setTitleFromAssistant, loadChat, hasUsedFreeTrial, markFreeTrialUsed, Msg } from '../hooks/useChats';
+import { 
+  ensureChat, 
+  appendMessage, 
+  setTitleFromAssistant, 
+  loadChat, 
+  isWithin24HoursOfSignup, 
+  Msg 
+} from '../hooks/useChats';
 import { tarotReply } from '../lib/openai';
 import { startPurchaseFlow } from '../lib/subscriptions';
 
 import Input from '../components/ui/input';
-import Button from '../components/ui/button';
+
+// Enable LayoutAnimation for Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+// --- Animation Wrapper for Individual Messages ---
+const FadeInView: React.FC<{ children: React.ReactNode; isUser: boolean }> = ({ children, isUser }) => {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(15)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  return (
+    <Animated.View 
+      style={{ 
+        opacity: fadeAnim, 
+        transform: [{ translateY: slideAnim }],
+        flexDirection: 'row', 
+        justifyContent: isUser ? 'flex-end' : 'flex-start', 
+        marginBottom: 12 
+      }}
+    >
+      {children}
+    </Animated.View>
+  );
+};
 
 type Props = { route?: any };
+
 const ChatScreen: React.FC<Props> = ({ route }) => {
   const { user } = useAuth();
   const { canChat, refresh } = useSub();
   const insets = useSafeAreaInsets();
+  
   const [chatId, setChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState('');
-  const [freeUsed, setFreeUsed] = useState(false);
+  const [within24Hours, setWithin24Hours] = useState(true);
   const [loading, setLoading] = useState(false);
 
   const scroller = useRef<ScrollView>(null);
 
-  // Log when canChat changes
-  useEffect(() => {
-    console.log('ChatScreen: canChat changed to:', canChat);
-  }, [canChat]);
+  // --- Effects ---
 
-  useEffect(() => {
-    if (!user) {
-      console.log('ChatScreen: No user yet');
-      return;
-    }
-    
-    const paramId = route?.params?.chatId as string | undefined;
-    console.log('ChatScreen: Ensuring chat, paramId:', paramId, 'userId:', user.uid);
-    
-    ensureChat(user.uid, paramId)
-      .then((id: string) => {
-        console.log('ChatScreen: Chat ID received:', id);
-        setChatId(id);
-      })
-      .catch((error) => {
-        console.error('ChatScreen: Error ensuring chat:', error);
-        // Create a fallback chat ID if ensureChat fails
-        const fallbackId = `chat-${Date.now()}`;
-        console.log('ChatScreen: Using fallback chat ID:', fallbackId);
-        setChatId(fallbackId);
-      });
-  }, [user?.uid, route?.params?.chatId]);
-
-  // Check global free trial status when user loads
   useEffect(() => {
     if (!user) return;
+    const paramId = route?.params?.chatId;
     
-    console.log('ChatScreen: Checking global free trial status for user:', user.uid);
-    hasUsedFreeTrial(user.uid)
-      .then((used) => {
-        console.log('ChatScreen: User has used free trial:', used);
-        setFreeUsed(used);
-      })
-      .catch((error) => {
-        console.error('ChatScreen: Error checking free trial:', error);
-      });
-  }, [user?.uid]);
+    ensureChat(user.uid, paramId).then(id => setChatId(id));
+    isWithin24HoursOfSignup(user.uid).then(within => setWithin24Hours(within));
+  }, [user?.uid, route?.params?.chatId]);
 
-  // Load existing chat messages when chatId is set
   useEffect(() => {
     if (!user || !chatId) return;
-    
-    console.log('ChatScreen: Loading messages for chatId:', chatId);
-    loadChat(user.uid, chatId)
-      .then((chat) => {
-        if (chat && chat.messages && chat.messages.length > 0) {
-          console.log('ChatScreen: Loaded', chat.messages.length, 'messages');
-          setMessages(chat.messages);
-        } else {
-          console.log('ChatScreen: No messages found in chat');
-        }
-      })
-      .catch((error) => {
-        console.error('ChatScreen: Error loading chat:', error);
-      });
+    loadChat(user.uid, chatId).then((chat) => {
+      if (chat?.messages) {
+        // Use LayoutAnimation when bulk loading messages for a smooth entrance
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        setMessages(chat.messages);
+      }
+    });
   }, [user?.uid, chatId]);
 
-  const scrollToEnd = () => setTimeout(() => scroller.current?.scrollToEnd({ animated: true }), 100);
+  const scrollToEnd = () => {
+    setTimeout(() => scroller.current?.scrollToEnd({ animated: true }), 150);
+  };
+
+  // --- Handlers ---
 
   const onSend = async () => {
     const text = input.trim();
-    console.log('=== onSend START ===');
-    console.log('onSend: text:', text, 'user:', !!user, 'chatId:', chatId, 'loading:', loading);
+    if (!text || !user || !chatId || loading) return;
+
+    // Trigger smooth layout shift
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     
-    if (!text || !user || !chatId || loading) {
-      console.log('onSend: early return - missing requirements');
-      return;
-    }
-    
-    console.log('onSend: Setting loading to true');
-    setLoading(true);
-    
-    console.log('onSend: Creating user message');
     const userMsg: Msg = { role: 'user', content: text, ts: Date.now() };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
-    
-    console.log('onSend: Appending user message to Firestore');
-    try {
-      await appendMessage(user.uid, chatId, messages, userMsg);
-      console.log('onSend: User message appended successfully');
-    } catch (error) {
-      console.error('onSend: Error appending user message:', error);
-    }
-    
-    const updatedAfterUser = [...messages, userMsg];
+    setLoading(true);
     scrollToEnd();
 
     try {
-      // Get oracle reply (mock or real)
-      console.log('onSend: Calling tarotReply with', updatedAfterUser.length, 'messages...');
-      const startTime = Date.now();
+      await appendMessage(user.uid, chatId, messages, userMsg);
+      const updatedAfterUser = [...messages, userMsg];
       
       const replyText = await tarotReply(updatedAfterUser);
-      
-      const elapsed = Date.now() - startTime;
-      console.log('onSend: Got reply in', elapsed, 'ms');
-      console.log('onSend: Reply text:', replyText?.substring(0, 100) + '...');
-      
       const botMsg: Msg = { role: 'assistant', content: replyText, ts: Date.now() };
-      console.log('onSend: Adding bot message to UI');
+
+      // Animate the Oracle's response appearing
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.spring);
       setMessages(prev => [...prev, botMsg]);
       
-      console.log('onSend: Appending bot message to Firestore');
       await appendMessage(user.uid, chatId, updatedAfterUser, botMsg);
-      console.log('onSend: Bot message appended successfully');
-      
-      console.log('onSend: Setting title from assistant message');
       await setTitleFromAssistant(user.uid, chatId, replyText);
-      console.log('onSend: Title set successfully');
-      
-      // Mark free trial as used globally (if not subscribed)
-      if (!canChat && !freeUsed) {
-        console.log('onSend: Marking free trial as used globally');
-        await markFreeTrialUsed(user.uid);
-      }
-      
-      setFreeUsed(true);
       scrollToEnd();
-      console.log('=== onSend SUCCESS ===');
     } catch (error) {
-      console.error('=== onSend ERROR ===');
-      console.error('Error getting tarot reading:', error);
-      const errorMsg: Msg = { role: 'assistant', content: 'The spirits are unclear at the moment. Please try again.', ts: Date.now() };
+      const errorMsg: Msg = { role: 'assistant', content: 'The stars are clouded. Please try again.', ts: Date.now() };
       setMessages(prev => [...prev, errorMsg]);
     } finally {
-      console.log('onSend: Setting loading to false');
       setLoading(false);
     }
   };
 
   const handleSubscribe = async () => {
-    console.log('=== ChatScreen handleSubscribe START ===');
-    console.log('handleSubscribe: user exists:', !!user);
-    console.log('handleSubscribe: current canChat:', canChat, 'freeUsed:', freeUsed);
-    
-    if (!user) {
-      console.log('handleSubscribe: No user, aborting');
-      return;
-    }
-    
+    if (!user) return;
     try {
-      console.log('handleSubscribe: Calling startPurchaseFlow...');
       await startPurchaseFlow(user.uid);
-      console.log('handleSubscribe: Purchase flow completed');
-      
-      console.log('handleSubscribe: Calling refresh...');
       await refresh();
-      console.log('handleSubscribe: Subscription refreshed');
-      console.log('handleSubscribe: canChat is now:', canChat);
-      console.log('=== ChatScreen handleSubscribe SUCCESS ===');
     } catch (error) {
-      console.error('=== ChatScreen handleSubscribe ERROR ===');
-      console.error('Error in handleSubscribe:', error);
+      console.error(error);
     }
   };
 
   const renderInputBar = () => {
-    // Show Subscribe button if: user is not subscribed AND has used their free message
-    // Show input if: user is subscribed OR hasn't used free message yet
-    const shouldShowSubscribe = !canChat && freeUsed;
-    
-    console.log('renderInputBar: canChat =', canChat, 'freeUsed =', freeUsed, 'shouldShowSubscribe =', shouldShowSubscribe);
-    
+    const shouldShowSubscribe = !canChat && !within24Hours;
     if (shouldShowSubscribe) {
       return (
-        <View style={{ 
-          padding: 16, 
-          paddingBottom: 16 + insets.bottom, // Add safe area padding for navigation bar
-          alignItems: 'center', 
-          backgroundColor: 'rgba(0, 0, 0, 0.9)' 
-        }}>
-          <TouchableOpacity
-            onPress={handleSubscribe}
-            style={{
-              backgroundColor: '#581c87',
-              borderRadius: 24,
-              paddingVertical: 14,
-              paddingHorizontal: 32,
-              borderWidth: 2,
-              borderColor: '#a855f7',
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 8,
-            }}
-          >
+        <View style={{ padding: 16, paddingBottom: 16 + insets.bottom, alignItems: 'center', backgroundColor: '#000' }}>
+          <TouchableOpacity onPress={handleSubscribe} style={{ backgroundColor: '#581c87', borderRadius: 24, paddingVertical: 14, paddingHorizontal: 32, borderWidth: 2, borderColor: '#a855f7', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Sparkles color="#e9d5ff" size={20} fill="#e9d5ff" />
-            <Text style={{ color: '#e9d5ff', fontSize: 18, fontWeight: '700' }}>
-              Subscribe 🔮
-            </Text>
+            <Text style={{ color: '#e9d5ff', fontSize: 18, fontWeight: '700' }}>Subscribe 🔮</Text>
           </TouchableOpacity>
-          <Text style={{ color: '#94a3b8', fontSize: 12, marginTop: 8 }}>
-            Unlock unlimited readings
-          </Text>
         </View>
       );
     }
 
     return (
-      <View style={{ 
-        flexDirection: 'row', 
-        alignItems: 'center', 
-        gap: 8, 
-        padding: 12, 
-        paddingBottom: 12 + insets.bottom, // Add safe area padding for navigation bar
-        backgroundColor: 'rgba(0, 0, 0, 0.9)' 
-      }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, paddingBottom: 12 + insets.bottom, backgroundColor: 'rgba(0,0,0,0.9)' }}>
         <Input
           value={input}
           onChangeText={setInput}
-          placeholder="What can I help you to navigate?"
+          placeholder="Ask the Oracle..."
           placeholderTextColor="#64748b"
           onSubmitEditing={onSend}
           editable={!loading}
-          style={{ 
-            flex: 1, 
-            backgroundColor: '#1e293b',
-            borderColor: '#475569',
-            color: '#e2e8f0',
-          }}
+          style={{ flex: 1, backgroundColor: '#1e293b', color: '#fff', borderRadius: 12 }}
         />
-        <TouchableOpacity
-          onPress={onSend}
+        <TouchableOpacity 
+          onPress={onSend} 
           disabled={loading || !input.trim()}
-          style={{ 
-            height: 48, 
-            width: 48, 
-            borderRadius: 12, 
-            backgroundColor: loading || !input.trim() ? '#334155' : '#1e3a8a', 
-            alignItems: 'center', 
-            justifyContent: 'center' 
-          }}
-          aria-label="Send"
+          style={{ height: 48, width: 48, borderRadius: 12, backgroundColor: loading || !input.trim() ? '#334155' : '#1e3a8a', alignItems: 'center', justifyContent: 'center' }}
         >
-          {loading ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <Send size={20} color="#fff" />
-          )}
+          {loading ? <ActivityIndicator size="small" color="#fff" /> : <Send size={20} color="#fff" />}
         </TouchableOpacity>
       </View>
     );
@@ -289,105 +199,61 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#000' }}>
       <ImageBackground source={chatBg} style={{ flex: 1 }} imageStyle={{ opacity: 0.15 }}>
-        <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
-          style={{ flex: 1 }}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
-        >
-          <View style={{ flex: 1, backgroundColor: 'transparent' }}>
-            <ScrollView 
-              ref={scroller} 
-              contentContainerStyle={{ padding: 16, paddingTop: 60, paddingBottom: 24 }}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-              {/* Empty-state hero */}
-              {messages.length === 0 && (
-                <View style={{ 
-                  backgroundColor: 'rgba(30, 58, 138, 0.3)',
-                  borderRadius: 16,
-                  padding: 20,
-                  marginVertical: 40,
-                  borderWidth: 1,
-                  borderColor: '#3b82f6',
-                }}>
-                  <Text style={{ 
-                    color: '#93c5fd', 
-                    textAlign: 'center',
-                    fontSize: 16,
-                    lineHeight: 24,
-                  }}>
-                    Blessings upon your journey 🌙{'\n\n'}
-                    What would you like insight on today?
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+          <ScrollView 
+            ref={scroller} 
+            contentContainerStyle={{ padding: 16, paddingTop: 60, paddingBottom: 24 }}
+            showsVerticalScrollIndicator={false}
+          >
+            {messages.length === 0 && (
+              <FadeInView isUser={false}>
+                <View style={{ backgroundColor: 'rgba(30, 58, 138, 0.2)', borderRadius: 16, padding: 20, width: '100%', borderWidth: 1, borderColor: '#3b82f6' }}>
+                  <Text style={{ color: '#93c5fd', textAlign: 'center', fontSize: 16 }}>
+                    Blessings upon your journey 🌙{"\n"}What secrets shall we uncover?
                   </Text>
                 </View>
-              )}
+              </FadeInView>
+            )}
 
-              {messages.map((m, i) => {
-                const isUser = m.role === 'user';
-                return (
-                  <View 
-                    key={i} 
-                    style={{ 
-                      flexDirection: 'row', 
-                      justifyContent: isUser ? 'flex-end' : 'flex-start', 
-                      marginBottom: 12 
-                    }}
-                  >
-                    <View
-                      style={{
-                        maxWidth: '80%',
-                        backgroundColor: isUser ? '#1e3a8a' : 'rgba(13, 20, 35, 0.9)',
-                        paddingVertical: 12,
-                        paddingHorizontal: 16,
-                        borderRadius: 16,
-                        borderWidth: isUser ? 0 : 1,
-                        borderColor: isUser ? 'transparent' : '#facc15',
-                      }}
-                    >
-                      <Text style={{ 
-                        color: isUser ? '#ffffff' : '#fde68a',
-                        fontSize: 15,
-                        lineHeight: 22,
-                      }}>
-                        {m.content}
-                      </Text>
-                    </View>
-                  </View>
-                );
-              })}
-
-              {loading && (
-                <View style={{ 
-                  flexDirection: 'row', 
-                  justifyContent: 'flex-start', 
-                  marginBottom: 12 
-                }}>
-                  <View
-                    style={{
-                      backgroundColor: 'rgba(13, 20, 35, 0.9)',
-                      paddingVertical: 16,
-                      paddingHorizontal: 20,
-                      borderRadius: 16,
-                      borderWidth: 1,
-                      borderColor: '#facc15',
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 12,
-                    }}
-                  >
-                    <ActivityIndicator size="small" color="#facc15" />
-                    <Text style={{ color: '#fde68a', fontSize: 15 }}>
-                      Consulting the cards...
+            {messages.map((m, i) => {
+              const isUser = m.role === 'user';
+              return (
+                <FadeInView key={m.ts || i} isUser={isUser}>
+                  <View style={{
+                    maxWidth: '85%',
+                    backgroundColor: isUser ? '#1e3a8a' : 'rgba(15, 23, 42, 0.95)',
+                    padding: 14,
+                    borderRadius: 18,
+                    borderWidth: isUser ? 0 : 1,
+                    borderColor: '#facc15',
+                    elevation: isUser ? 0 : 5,
+                    shadowColor: '#facc15',
+                    shadowOpacity: isUser ? 0 : 0.2,
+                    shadowRadius: 8,
+                  }}>
+                    <Text style={{ 
+                      color: isUser ? '#fff' : '#fde68a', 
+                      fontSize: 16, 
+                      lineHeight: 24,
+                      fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif' 
+                    }}>
+                      {m.content}
                     </Text>
                   </View>
-                </View>
-              )}
-            </ScrollView>
+                </FadeInView>
+              );
+            })}
 
-            {/* Input or Subscribe */}
-            {renderInputBar()}
-          </View>
+            {loading && (
+              <FadeInView isUser={false}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(0,0,0,0.5)', padding: 12, borderRadius: 12 }}>
+                  <ActivityIndicator size="small" color="#facc15" />
+                  <Text style={{ color: '#facc15', fontStyle: 'italic' }}>Consulting the cards...</Text>
+                </View>
+              </FadeInView>
+            )}
+          </ScrollView>
+          {renderInputBar()}
         </KeyboardAvoidingView>
       </ImageBackground>
     </SafeAreaView>
