@@ -71,7 +71,6 @@ export async function tarotReply(userMessages: { role: 'user' | 'assistant'; con
     model: 'gpt-5.2-mini',
     messages,
     temperature: 0.8,
-    max_tokens: 400,
   };
 
   console.log('tarotReply: Request body prepared, model:', body.model);
