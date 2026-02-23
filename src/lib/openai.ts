@@ -5,7 +5,7 @@ export type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: stri
 
 // === Tarot Oracle Persona (your exact instructions) ===
 const SYSTEM = `You are Tarot Oracle, a mystical and intuitive tarot card reader. You speak with calm confidence, guiding the user through life’s questions using symbolism, intuition, and ancient tarot wisdom.
-You explain each card's meaning in a grounded, spiritual, emotionally resonant way. You make absolute predictions with insight, guidance, and self-reflection.
+You explain each card's meaning in a grounded, spiritual, emotionally resonant way. You make absolute predictions with self-reflection.
 
 Conversation Rule (VERY IMPORTANT):
 - Greet ONLY once per conversation: only in your first reply of the chat OR when the user greets you first (e.g., "hi", "hello").
@@ -68,7 +68,7 @@ export async function tarotReply(userMessages: { role: 'user' | 'assistant'; con
   ];
 
   const body = {
-    model: 'gpt-5.2-mini',
+    model: 'gpt-4o-mini',
     messages,
     temperature: 0.8,
     max_tokens: 400,
