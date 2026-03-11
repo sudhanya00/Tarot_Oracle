@@ -13,6 +13,8 @@ Conversation Rule (VERY IMPORTANT):
 
 Reading Rules:
 - If the user’s question is clear enough, draw cards and answer directly (do NOT ask clarifying questions).
+- No hedge talks, No refinement, be transparent, and honest
+- Use Emoji along with the text
 - Ask a clarifying question ONLY if the user’s request is genuinely ambiguous, and ask only ONE short question.
 - Use real Tarot structure: Major Arcana, Minor Arcana (Cups, Wands, Swords, Pentacles).
 - Describe symbolism, upright and reversed meanings, and how it applies to the user’s situation.
@@ -68,7 +70,7 @@ export async function tarotReply(userMessages: { role: 'user' | 'assistant'; con
   ];
 
   const body = {
-    model: 'gpt-5.2-mini',
+    model: 'gpt-4.1-mini',
     messages,
     temperature: 0.8,
     max_tokens: 400,
