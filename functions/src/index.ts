@@ -17,7 +17,7 @@ const getStripe = () => {
   if (!secret) {
     throw new Error("Stripe secret key not configured");
   }
-  return new StripePkg(secret, { apiVersion: "2024-06-20" });
+  return new StripePkg(secret, { apiVersion: "2026-06-24.dahlia" });
 };
 
 // Firebase Callable Function: Create Stripe Checkout Session
@@ -131,7 +131,7 @@ export const stripeWebhook = onRequest(async (req, res) => {
             isActive: subscription.status === "active" || subscription.status === "trialing",
             stripeSubscriptionId: subscription.id,
             status: subscription.status,
-            currentPeriodEnd: subscription.current_period_end * 1000, // Convert to ms
+            currentPeriodEnd: (subscription as any).current_period_end * 1000, // Convert to ms
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           }, { merge: true });
           

@@ -25,10 +25,11 @@ export async function emailSignIn(email: string, password: string): Promise<{ us
   try {
     const { initializeFirebase } = await import('./firebase-config');
     const { auth } = await initializeFirebase();
-    
+
     if (Platform.OS === 'web') {
       const { signInWithEmailAndPassword } = await import('firebase/auth');
-      return signInWithEmailAndPassword(auth!, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth!, email, password);
+      return { user: userCredential.user };
     } else {
       // React Native Firebase
       const result = await auth.signInWithEmailAndPassword(email, password);
@@ -69,10 +70,11 @@ export async function emailSignUp(email: string, password: string): Promise<{ us
   try {
     const { initializeFirebase } = await import('./firebase-config');
     const { auth } = await initializeFirebase();
-    
+
     if (Platform.OS === 'web') {
       const { createUserWithEmailAndPassword } = await import('firebase/auth');
-      return createUserWithEmailAndPassword(auth!, email, password);
+      const userCredential = await createUserWithEmailAndPassword(auth!, email, password);
+      return { user: userCredential.user };
     } else {
       // React Native Firebase
       const result = await auth.createUserWithEmailAndPassword(email, password);
