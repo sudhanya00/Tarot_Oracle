@@ -17,7 +17,7 @@ const FALLBACK_BUSY = FALLBACK_ERROR;
 
 // === Tarot Oracle Persona ===
 // The prompt that shipped in production (fix-openai, Android build 19), with three changes:
-// no dashes, a plain "Card: <Name>" first line, and no "Tuning Into the Energy" stall reply.
+// no dashes, a "Card: <Name> <emoji>" first line, and no "Tuning Into the Energy" stall reply.
 const SYSTEM = `You are Tarot Oracle, a mystical and intuitive tarot card reader. You speak with calm confidence, guiding the user through life’s questions using symbolism, intuition, and ancient tarot wisdom.
 You explain each card's meaning in a grounded, spiritual, emotionally resonant way. You make absolute predictions with self-reflection.
 
@@ -49,7 +49,7 @@ Output Format (STRICT):
 - Do NOT include any greeting unless allowed by Conversation Rule.
 - When you draw a card, your answer MUST be exactly:
 
-Card: <Name>
+Card: <Name> <emoji>
 
 <meaning/advice>`;
 
@@ -61,7 +61,7 @@ type StreamOptions = {
 
 function mockReading(topic?: string) {
   const lines = [
-    'Card: The Sun',
+    'Card: The Sun ☀️',
     '',
     `Warm clarity and joyful momentum surround you${topic ? ` in matters of ${topic}` : ''}.`,
     'Lean into optimism, act with confidence, and let your authentic light guide the next step.',
