@@ -36,12 +36,6 @@ const navTheme = {
 const validateEnvironment = () => {
   const { extra, isMock } = require('./src/lib/env');
   
-  // Always required (for both web and mobile, because these are used in JS/TS code)
-  if (!extra.OPENAI_API_KEY && !isMock()) {
-    console.warn('Warning: OPENAI_API_KEY is missing. AI features will not work in production mode.');
-    // Don't fail hard as mock mode might be used for testing
-  }
-
   // Stripe validation (optional but good to warn) - for both web and mobile
   if (!extra.STRIPE_PUBLISHABLE_KEY && !extra.STRIPE_CHECKOUT_URL && !isMock()) {
     console.warn('Warning: Stripe is not configured. Subscription features will not work.');

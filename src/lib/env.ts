@@ -2,7 +2,8 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
 type Extra = {
-  OPENAI_API_KEY: string;
+  // Optional override for the oracleReply function URL (e.g. the emulator).
+  ORACLE_URL?: string;
   STRIPE_PUBLISHABLE_KEY: string;
   ADMOB_BANNER_ID: string;
   FIREBASE_API_KEY: string;

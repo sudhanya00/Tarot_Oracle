@@ -7,6 +7,8 @@ import cors from "cors";
 const corsHandler = cors({ origin: true });
 admin.initializeApp();
 
+export {oracleReply} from "./oracle";
+
 // Define parameters for runtime config
 const stripeSecretKey = defineString("STRIPE_SECRET_KEY");
 // Pricing: $3 one-time Day Pass (24h of access, stackable) and $30/month subscription.
@@ -231,6 +233,44 @@ export const stripeWebhook = onRequest(async (req, res) => {
   }
 
   res.json({ received: true });
+});
+
+// Permanently deletes the caller's account (required by the App Store for apps with sign-up):
+// stops any monthly billing, then removes their profile, readings, usage and plan, and the
+// Firebase Auth user. Checkout receipts in stripe_checkout_sessions are kept as payment records.
+export const deleteAccount = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "Sign in required.");
+  }
+  const uid = request.auth.uid;
+  const db = admin.firestore();
+  const planRef = subscriptionRef(uid);
+
+  // Older plan docs (from the previous webhook) only have stripeSubscriptionId, so ask Stripe.
+  const subscriptionId = (await planRef.get()).get("stripeSubscriptionId");
+  if (subscriptionId) {
+    try {
+      const stripe = getStripe();
+      const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+      if (!["canceled", "incomplete_expired"].includes(subscription.status)) {
+        await stripe.subscriptions.cancel(subscriptionId);
+      }
+    } catch (error: any) {
+      // A subscription Stripe no longer knows about is fine; anything else must stop the
+      // deletion so billing doesn't continue for an account that no longer exists.
+      if (error?.code !== "resource_missing") {
+        console.error("[deleteAccount] Could not cancel subscription:", error);
+        throw new HttpsError("internal", "Could not cancel your subscription. Please try again.");
+      }
+    }
+  }
+
+  await db.recursiveDelete(db.collection("users").doc(uid)); // profile + chats subcollection
+  await Promise.all([planRef.delete(), db.collection("usage").doc(uid).delete()]);
+  await admin.auth().deleteUser(uid);
+
+  console.log("[deleteAccount] Deleted account:", uid);
+  return { ok: true };
 });
 
 // (Optional) Callable to prune chat messages server-side to <=25 for cost control

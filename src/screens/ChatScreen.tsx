@@ -27,7 +27,7 @@ const chatBg = require('../../assets/images/chat_bg.png');
 import { useAuth } from '../context/AuthProvider';
 import { useSub } from '../context/SubscriptionProvider';
 import { ensureChat, appendMessage, setTitleFromAssistant, loadChat, hasUsedFreeTrial, markFreeTrialUsed, Msg } from '../hooks/useChats';
-import { streamTarotReply } from '../lib/openai';
+import { PaymentRequiredError, streamTarotReply } from '../lib/openai';
 import { splitReading } from '../lib/reading';
 
 import CosmicBackground from '../components/magic/CosmicBackground';
@@ -176,10 +176,16 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
       }
       setFreeUsed(true);
     } catch (error) {
+      setStreamingText(null);
+      // The server is the source of truth: free reading used and no active plan.
+      if (error instanceof PaymentRequiredError) {
+        setFreeUsed(true);
+        setPaywallOpen(true);
+        return;
+      }
       console.error('Error getting tarot reading:', error);
       const errorMsg: Msg = { role: 'assistant', content: "Something went wrong getting your reading. Please try again.", ts: Date.now() };
       setMessages((prev) => [...prev, errorMsg]);
-      setStreamingText(null);
     } finally {
       setLoading(false);
     }

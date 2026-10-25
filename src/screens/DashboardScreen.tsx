@@ -4,7 +4,7 @@ import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from "re
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeInDown } from "react-native-reanimated";
-import { ChevronRight, LogOut } from "lucide-react-native";
+import { ChevronRight, UserRound } from "lucide-react-native";
 
 import { useAuth } from "../context/AuthProvider";
 import { useSub } from "../context/SubscriptionProvider";
@@ -15,6 +15,7 @@ import GlassPanel from "../components/magic/GlassPanel";
 import GlowButton from "../components/magic/GlowButton";
 import PressableScale from "../components/magic/PressableScale";
 import TarotCard, { FloatingCard } from "../components/magic/TarotCard";
+import AccountSheet from "../components/AccountSheet";
 import PaywallSheet from "../components/PaywallSheet";
 import PlanPill from "../components/PlanPill";
 import { colors, fonts, radii, type } from "../theme";
@@ -74,6 +75,7 @@ const DashboardScreen: React.FC = () => {
   });
   const [loading, setLoading] = useState(true);
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
 
   const loadChats = useCallback(async () => {
     if (!user) return;
@@ -124,6 +126,7 @@ const DashboardScreen: React.FC = () => {
   };
 
   const handleLogout = async () => {
+    setAccountOpen(false);
     try {
       await signOutAsync();
       // Tells Login to ignore the briefly-stale signed-in user instead of bouncing back here.
@@ -150,8 +153,8 @@ const DashboardScreen: React.FC = () => {
         <Animated.View entering={FadeInDown.duration(700)} style={styles.header}>
           <Text style={[type.title, { flex: 1 }]}>{greeting()}</Text>
           <PlanPill onPress={() => setPaywallOpen(true)} />
-          <PressableScale onPress={handleLogout} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Log out">
-            <LogOut size={18} color={colors.textMuted} />
+          <PressableScale onPress={() => setAccountOpen(true)} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Account">
+            <UserRound size={18} color={colors.textMuted} />
           </PressableScale>
         </Animated.View>
 
@@ -232,6 +235,15 @@ const DashboardScreen: React.FC = () => {
       </View>
 
       <PaywallSheet visible={paywallOpen} onClose={() => setPaywallOpen(false)} />
+      <AccountSheet
+        visible={accountOpen}
+        onClose={() => setAccountOpen(false)}
+        onLogout={handleLogout}
+        onDeleted={() => {
+          setAccountOpen(false);
+          navigation.reset({ index: 0, routes: [{ name: "Welcome" }] });
+        }}
+      />
     </CosmicBackground>
   );
 };

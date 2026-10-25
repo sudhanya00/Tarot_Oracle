@@ -37,12 +37,17 @@ export default () => ({
     ios: {
       googleServicesFile: process.env.GOOGLE_SERVICES_PLIST || "./GoogleService-Info.plist",
       bundleIdentifier: "com.tarotoracle.app",
+      // Only standard HTTPS/TLS is used, which is exempt from export compliance.
+      infoPlist: { ITSAppUsesNonExemptEncryption: false },
+      // Adds the Sign in with Apple capability (App Store requires it alongside Google sign-in).
+      usesAppleSignIn: true,
       // Enable New Architecture for React Native Reanimated 4.x
       newArchEnabled: true
     },
 
     extra: {
-      OPENAI_API_KEY: process.env.OPENAI_API_KEY || "",
+      // The OpenAI key lives in the oracleReply Cloud Function, never in the app bundle.
+      ORACLE_URL: process.env.ORACLE_URL || "",
       STRIPE_PUBLISHABLE_KEY: process.env.STRIPE_PUBLISHABLE_KEY || "",
       STRIPE_PRICE_ID: process.env.STRIPE_PRICE_ID || "",
       ADMOB_BANNER_ID: process.env.ADMOB_BANNER_ID || "",
@@ -72,6 +77,7 @@ export default () => ({
     // ✅ Explicit plugin list (prevents Expo from asking you later)
     plugins: [
       "expo-web-browser",
+      "expo-apple-authentication",
       [
         "@react-native-google-signin/google-signin",
         {

@@ -13,13 +13,15 @@ import CosmicBackground from './magic/CosmicBackground';
 import GlassPanel from './magic/GlassPanel';
 import GlowButton from './magic/GlowButton';
 
-// Summary text carried over from the production consent screen.
+// Plain-language summary of what the app does with data. Keep it in step with the full
+// policy at PRIVACY_POLICY_URL (review it with whoever owns the policy).
 const KEY_POINTS = [
-  'We collect and process your personal information to provide our tarot reading services.',
-  'Your data is stored securely and used only for app functionality.',
-  'We do not share your personal information with third parties without consent.',
-  'You have the right to access, modify, or delete your data.',
-  'We use cookies and similar technologies to improve your experience.',
+  'We store your name, email, and your readings so you can come back to them. Your data is kept in Google Firebase.',
+  'The questions you ask, and earlier messages in that chat, are sent to OpenAI to write your reading.',
+  'Payments are handled by Stripe. We never see or store your card details.',
+  'We show ads through Google AdMob, which may use your device identifiers.',
+  'We do not sell your personal information.',
+  'You can delete your account and all your readings at any time from the Account screen.',
 ];
 
 type ModalProps = {

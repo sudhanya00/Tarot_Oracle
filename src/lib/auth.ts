@@ -198,10 +198,10 @@ export async function signInWithGoogleAsync(): Promise<AuthUser> {
 }
 
 export async function signInWithAppleAsync(): Promise<AuthUser> {
-  if (isMock() || Platform.OS !== 'ios') {
+  if (isMock()) {
     // Mock Apple sign-in for testing
     await new Promise(resolve => setTimeout(resolve, 800));
-    
+
     const mockEmail = 'mock@apple.test';
     if (!mockUsers[mockEmail]) {
       mockUsers[mockEmail] = {
@@ -214,36 +214,58 @@ export async function signInWithAppleAsync(): Promise<AuthUser> {
     return mockUsers[mockEmail];
   }
 
-  // iOS native Apple Sign In (requires expo-apple-authentication)
+  if (Platform.OS !== 'ios') {
+    throw new Error('Apple Sign In is only available on iOS.');
+  }
+
+  // iOS: Sign in with Apple, then exchange Apple's identity token for a Firebase session.
   try {
     const AppleAuthentication = await import('expo-apple-authentication');
+    const Crypto = await import('expo-crypto');
+    const rnfAuth = await import('@react-native-firebase/auth');
+    const { initializeFirebase } = await import('./firebase-config');
+    const { auth } = await initializeFirebase();
+
+    // Apple receives the hashed nonce; Firebase checks it against the raw one.
+    const rawNonce = Crypto.randomUUID();
+    const hashedNonce = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, rawNonce);
+
     const credential = await AppleAuthentication.signInAsync({
       requestedScopes: [
         AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
         AppleAuthentication.AppleAuthenticationScope.EMAIL,
       ],
+      nonce: hashedNonce,
     });
 
-    // Return a mock user based on Apple credential
-    // In production, you'd verify the credential with your backend
-    const user: AuthUser = {
-      uid: credential.user,
-      email: credential.email || null,
-      displayName: credential.fullName?.givenName || null,
-      photoURL: null
-    };
-    
-    // Store in mock users
-    if (user.email) {
-      mockUsers[user.email] = user;
+    if (!credential.identityToken) {
+      throw new Error('Apple Sign In did not return an identity token');
     }
-    
-    return user;
+
+    const appleCredential = rnfAuth.default.AppleAuthProvider.credential(credential.identityToken, rawNonce);
+    const userCredential = await auth.signInWithCredential(appleCredential);
+
+    // Apple only shares the name on the first sign-in, so keep it on the Firebase profile.
+    const fullName = [credential.fullName?.givenName, credential.fullName?.familyName].filter(Boolean).join(' ');
+    if (fullName && !userCredential.user.displayName) {
+      await userCredential.user.updateProfile({ displayName: fullName });
+    }
+
+    return userCredential.user;
   } catch (error: any) {
-    if (error?.code === 'ERR_CANCELED') {
+    if (error?.code === 'ERR_REQUEST_CANCELED' || error?.code === 'ERR_CANCELED') {
       throw new Error('Apple Sign In was cancelled');
     }
     console.error('Error during Apple sign in:', error);
     throw error;
   }
+}
+
+// Firebase ID token for the signed-in user, sent to Cloud Functions that check who's calling.
+export async function getIdToken(): Promise<string | null> {
+  if (isMock()) return null;
+  const { initializeFirebase } = await import('./firebase-config');
+  const { auth } = await initializeFirebase();
+  const current = auth?.currentUser;
+  return current ? current.getIdToken() : null;
 }

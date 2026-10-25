@@ -1,23 +1,13 @@
 // Bottom sheet offering the Day Pass ($3 / 24h) and Monthly ($30) plans.
 import React, { useEffect, useState } from 'react';
-import { Alert, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, {
-  Easing,
-  FadeIn,
-  runOnJS,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming,
-  ZoomIn,
-} from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { X } from 'lucide-react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
+import Animated, { FadeIn, useAnimatedStyle, useSharedValue, withTiming, ZoomIn } from 'react-native-reanimated';
 import { useAuth } from '../context/AuthProvider';
 import { useSub } from '../context/SubscriptionProvider';
 import { formatTimeLeft, PLAN_ORDER, PLANS, PlanId } from '../lib/plans';
 import { startPurchaseFlow } from '../lib/subscriptions';
 import { colors, fonts, glow, radii, type } from '../theme';
+import BottomSheet from './magic/BottomSheet';
 import GlowButton from './magic/GlowButton';
 import PressableScale from './magic/PressableScale';
 import TarotCard from './magic/TarotCard';
@@ -25,34 +15,18 @@ import TarotCard from './magic/TarotCard';
 type Props = { visible: boolean; onClose: () => void; reason?: string };
 
 export default function PaywallSheet({ visible, onClose, reason }: Props) {
-  const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { entitlement, refreshAfterPurchase } = useSub();
-  const [mounted, setMounted] = useState(visible);
   const [selected, setSelected] = useState<PlanId>('month');
   const [busy, setBusy] = useState(false);
   const [celebrate, setCelebrate] = useState(false);
 
-  const backdrop = useSharedValue(0);
-  const offset = useSharedValue(600);
-
+  // Start fresh each time the sheet opens.
   useEffect(() => {
-    if (visible) {
-      setMounted(true);
-      setCelebrate(false);
-      setSelected(entitlement.active && entitlement.plan === 'day' ? 'day' : 'month');
-      backdrop.value = withTiming(1, { duration: 260 });
-      offset.value = withSpring(0, { damping: 20, stiffness: 180, mass: 0.9 });
-    } else if (mounted) {
-      backdrop.value = withTiming(0, { duration: 200 });
-      offset.value = withTiming(600, { duration: 240, easing: Easing.in(Easing.cubic) }, (done) => {
-        if (done) runOnJS(setMounted)(false);
-      });
-    }
+    if (!visible) return;
+    setCelebrate(false);
+    setSelected(entitlement.active && entitlement.plan === 'day' ? 'day' : 'month');
   }, [visible]);
-
-  const backdropStyle = useAnimatedStyle(() => ({ opacity: backdrop.value }));
-  const sheetStyle = useAnimatedStyle(() => ({ transform: [{ translateY: offset.value }] }));
 
   const monthlyActive = entitlement.active && entitlement.plan === 'month';
   const dayActive = entitlement.active && entitlement.plan === 'day';
@@ -80,8 +54,6 @@ export default function PaywallSheet({ visible, onClose, reason }: Props) {
     }
   };
 
-  if (!mounted) return null;
-
   const cta =
     selected === 'day'
       ? dayActive
@@ -90,57 +62,46 @@ export default function PaywallSheet({ visible, onClose, reason }: Props) {
       : 'Subscribe for $30 a month';
 
   return (
-    <Modal transparent visible={mounted} onRequestClose={onClose} statusBarTranslucent animationType="none">
-      <Animated.View style={[StyleSheet.absoluteFill, styles.backdrop, backdropStyle]}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close" />
-      </Animated.View>
-
-      <Animated.View style={[styles.sheet, { paddingBottom: 24 + insets.bottom }, sheetStyle]}>
-        <View style={styles.handle} />
-        <Pressable onPress={onClose} style={styles.close} accessibilityRole="button" accessibilityLabel="Close">
-          <X size={20} color={colors.textMuted} />
-        </Pressable>
-
-        {celebrate ? (
-          <Animated.View entering={FadeIn.duration(300)} style={styles.celebrate}>
-            <Animated.View entering={ZoomIn.springify().damping(12)} style={styles.burst}>
-              <TarotCard width={84} face="sun" hideLabel />
-            </Animated.View>
-            <Text style={[type.title, { textAlign: 'center' }]}>You're all set</Text>
-            <Text style={[type.caption, { textAlign: 'center' }]}>Unlimited readings are unlocked.</Text>
+    <BottomSheet visible={visible} onClose={onClose}>
+      {celebrate ? (
+        <Animated.View entering={FadeIn.duration(300)} style={styles.celebrate}>
+          <Animated.View entering={ZoomIn.springify().damping(12)} style={styles.burst}>
+            <TarotCard width={84} face="sun" hideLabel />
           </Animated.View>
-        ) : (
-          <>
-            <Text style={[type.title, styles.title]}>{monthlyActive ? "You're on Monthly" : 'Keep reading'}</Text>
+          <Text style={[type.title, { textAlign: 'center' }]}>You're all set</Text>
+          <Text style={[type.caption, { textAlign: 'center' }]}>Unlimited readings are unlocked.</Text>
+        </Animated.View>
+      ) : (
+        <>
+          <Text style={[type.title, styles.title]}>{monthlyActive ? "You're on Monthly" : 'Keep reading'}</Text>
 
-            {!monthlyActive && reason && <Text style={type.caption}>{reason}</Text>}
+          {!monthlyActive && reason && <Text style={type.caption}>{reason}</Text>}
 
-            {dayActive && entitlement.expiresAt && (
-              <Text style={[type.caption, styles.status]}>
-                Your Day Pass has {formatTimeLeft(entitlement.expiresAt)}.
+          {dayActive && entitlement.expiresAt && (
+            <Text style={[type.caption, styles.status]}>
+              Your Day Pass has {formatTimeLeft(entitlement.expiresAt)}.
+            </Text>
+          )}
+
+          {monthlyActive ? (
+            <Text style={type.body}>Unlimited readings until you cancel.</Text>
+          ) : (
+            <>
+              <View style={styles.plans}>
+                {PLAN_ORDER.map((id) => (
+                  <PlanOption key={id} id={id} selected={selected === id} onSelect={() => setSelected(id)} />
+                ))}
+              </View>
+              <GlowButton label={cta} onPress={handlePurchase} loading={busy} />
+              <Text style={styles.fine}>
+                The Day Pass is a one-time payment and doesn't renew. Buying another adds 24 hours. Monthly renews
+                until you cancel. Payments are processed by Stripe.
               </Text>
-            )}
-
-            {monthlyActive ? (
-              <Text style={type.body}>Unlimited readings until you cancel.</Text>
-            ) : (
-              <>
-                <View style={styles.plans}>
-                  {PLAN_ORDER.map((id) => (
-                    <PlanOption key={id} id={id} selected={selected === id} onSelect={() => setSelected(id)} />
-                  ))}
-                </View>
-                <GlowButton label={cta} onPress={handlePurchase} loading={busy} />
-                <Text style={styles.fine}>
-                  The Day Pass is a one-time payment and doesn't renew. Buying another adds 24 hours. Monthly renews
-                  until you cancel. Payments are processed by Stripe.
-                </Text>
-              </>
-            )}
-          </>
-        )}
-      </Animated.View>
-    </Modal>
+            </>
+          )}
+        </>
+      )}
+    </BottomSheet>
   );
 }
 
@@ -181,26 +142,6 @@ function PlanOption({ id, selected, onSelect }: { id: PlanId; selected: boolean;
 }
 
 const styles = StyleSheet.create({
-  backdrop: { backgroundColor: 'rgba(2, 3, 10, 0.72)' },
-  sheet: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: '#0a0d22',
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.hairlineGold,
-    paddingHorizontal: 22,
-    paddingTop: 12,
-    gap: 14,
-    maxWidth: 560,
-    alignSelf: 'center',
-    width: '100%',
-  },
-  handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.hairlineGold },
-  close: { position: 'absolute', right: 16, top: 16, padding: 8, zIndex: 2 },
   title: { marginTop: 4, paddingRight: 40 },
   status: { color: colors.goldBright },
   plans: { gap: 12 },

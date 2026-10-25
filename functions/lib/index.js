@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.addTestSubscription = exports.trimChatMessages = exports.stripeWebhook = exports.createStripeCheckoutSession = void 0;
+exports.addTestSubscription = exports.trimChatMessages = exports.deleteAccount = exports.stripeWebhook = exports.createStripeCheckoutSession = exports.oracleReply = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const params_1 = require("firebase-functions/params");
 const admin = __importStar(require("firebase-admin"));
@@ -44,6 +44,8 @@ const stripe_1 = __importDefault(require("stripe"));
 const cors_1 = __importDefault(require("cors"));
 const corsHandler = (0, cors_1.default)({ origin: true });
 admin.initializeApp();
+var oracle_1 = require("./oracle");
+Object.defineProperty(exports, "oracleReply", { enumerable: true, get: function () { return oracle_1.oracleReply; } });
 // Define parameters for runtime config
 const stripeSecretKey = (0, params_1.defineString)("STRIPE_SECRET_KEY");
 // Pricing: $3 one-time Day Pass (24h of access, stackable) and $30/month subscription.
@@ -244,6 +246,41 @@ exports.stripeWebhook = (0, https_1.onRequest)(async (req, res) => {
         return;
     }
     res.json({ received: true });
+});
+// Permanently deletes the caller's account (required by the App Store for apps with sign-up):
+// stops any monthly billing, then removes their profile, readings, usage and plan, and the
+// Firebase Auth user. Checkout receipts in stripe_checkout_sessions are kept as payment records.
+exports.deleteAccount = (0, https_1.onCall)(async (request) => {
+    if (!request.auth) {
+        throw new https_1.HttpsError("unauthenticated", "Sign in required.");
+    }
+    const uid = request.auth.uid;
+    const db = admin.firestore();
+    const planRef = subscriptionRef(uid);
+    // Older plan docs (from the previous webhook) only have stripeSubscriptionId, so ask Stripe.
+    const subscriptionId = (await planRef.get()).get("stripeSubscriptionId");
+    if (subscriptionId) {
+        try {
+            const stripe = getStripe();
+            const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+            if (!["canceled", "incomplete_expired"].includes(subscription.status)) {
+                await stripe.subscriptions.cancel(subscriptionId);
+            }
+        }
+        catch (error) {
+            // A subscription Stripe no longer knows about is fine; anything else must stop the
+            // deletion so billing doesn't continue for an account that no longer exists.
+            if (error?.code !== "resource_missing") {
+                console.error("[deleteAccount] Could not cancel subscription:", error);
+                throw new https_1.HttpsError("internal", "Could not cancel your subscription. Please try again.");
+            }
+        }
+    }
+    await db.recursiveDelete(db.collection("users").doc(uid)); // profile + chats subcollection
+    await Promise.all([planRef.delete(), db.collection("usage").doc(uid).delete()]);
+    await admin.auth().deleteUser(uid);
+    console.log("[deleteAccount] Deleted account:", uid);
+    return { ok: true };
 });
 // (Optional) Callable to prune chat messages server-side to <=25 for cost control
 exports.trimChatMessages = (0, https_1.onCall)(async (request) => {
