@@ -10,19 +10,8 @@ import { useSub } from '../context/SubscriptionProvider';
 import { acceptPrivacyPolicy, hasAcceptedPrivacyPolicy, PRIVACY_POLICY_URL } from '../lib/profile';
 import { colors, fonts, type } from '../theme';
 import CosmicBackground from './magic/CosmicBackground';
-import GlassPanel from './magic/GlassPanel';
 import GlowButton from './magic/GlowButton';
-
-// Plain-language summary of what the app does with data. Keep it in step with the full
-// policy at PRIVACY_POLICY_URL (review it with whoever owns the policy).
-const KEY_POINTS = [
-  'We store your name, email, and your readings so you can come back to them. Your data is kept in Google Firebase.',
-  'The questions you ask, and earlier messages in that chat, are sent to OpenAI to write your reading.',
-  'Payments are handled by Stripe. We never see or store your card details.',
-  'We show ads through Google AdMob, which may use your device identifiers.',
-  'We do not sell your personal information.',
-  'You can delete your account and all your readings at any time from the Account screen.',
-];
+import { FloatingCard } from './magic/TarotCard';
 
 type ModalProps = {
   visible: boolean;
@@ -45,6 +34,7 @@ export function PrivacyConsentModal({ visible, busy, onAccept, onDecline }: Moda
           contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 32, paddingBottom: 24 }]}
           showsVerticalScrollIndicator={false}
         >
+          <FloatingCard width={64} face="star" tilt={-4} amplitude={6} style={{ marginBottom: 6 }} />
           <Text style={type.title}>Privacy Policy</Text>
           <Text style={[type.body, styles.lead]}>
             Before you use Tarot Oracle, please read and accept our Privacy Policy.
@@ -54,16 +44,6 @@ export function PrivacyConsentModal({ visible, busy, onAccept, onDecline }: Moda
             <Text style={styles.linkText}>Read the full Privacy Policy</Text>
             <ExternalLink size={16} color={colors.moon} />
           </Pressable>
-
-          <GlassPanel style={styles.points}>
-            <Text style={type.heading}>The short version</Text>
-            {KEY_POINTS.map((point) => (
-              <View key={point} style={styles.point}>
-                <View style={styles.bullet} />
-                <Text style={[type.caption, styles.pointText]}>{point}</Text>
-              </View>
-            ))}
-          </GlassPanel>
         </ScrollView>
 
         <View style={[styles.footer, { paddingBottom: insets.bottom + 16 }]}>
@@ -147,14 +127,18 @@ export function useAuthRouting() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { paddingHorizontal: 22, gap: 16, width: '100%', maxWidth: 560, alignSelf: 'center' },
+  scroll: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 22,
+    gap: 16,
+    width: '100%',
+    maxWidth: 560,
+    alignSelf: 'center',
+  },
   lead: { color: colors.textMuted },
   link: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start', paddingVertical: 4 },
   linkText: { fontFamily: fonts.bodySemi, fontSize: 17, color: colors.moon, textDecorationLine: 'underline' },
-  points: { padding: 18, gap: 12 },
-  point: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
-  bullet: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.gold, marginTop: 9 },
-  pointText: { flex: 1, color: colors.text },
   footer: {
     paddingHorizontal: 22,
     paddingTop: 14,
