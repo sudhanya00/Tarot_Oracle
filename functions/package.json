@@ -1,7 +1,7 @@
 {
   "name": "tarot-oracle-functions",
   "private": true,
-  "engines": { "node": ">=18" },
+  "engines": { "node": "22" },
   "main": "lib/index.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",

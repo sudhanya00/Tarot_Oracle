@@ -1,397 +1,377 @@
 // src/screens/ChatScreen.tsx
-import React, { useEffect, useRef, useState } from 'react';
+import React, { memo, useEffect, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  ScrollView,
   KeyboardAvoidingView,
   Platform,
-  ImageBackground,
-  TouchableOpacity,
-  SafeAreaView,
-  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Send, Sparkles } from 'lucide-react-native';
+import Animated, {
+  Easing,
+  FadeIn,
+  FadeInDown,
+  FadeInUp,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from 'react-native-reanimated';
+import { ArrowUp, ChevronLeft } from 'lucide-react-native';
 const chatBg = require('../../assets/images/chat_bg.png');
 
 import { useAuth } from '../context/AuthProvider';
 import { useSub } from '../context/SubscriptionProvider';
 import { ensureChat, appendMessage, setTitleFromAssistant, loadChat, hasUsedFreeTrial, markFreeTrialUsed, Msg } from '../hooks/useChats';
-import { tarotReply } from '../lib/openai';
-import { startPurchaseFlow } from '../lib/subscriptions';
+import { streamTarotReply } from '../lib/openai';
+import { splitReading } from '../lib/reading';
 
-import Input from '../components/ui/input';
-import Button from '../components/ui/button';
+import CosmicBackground from '../components/magic/CosmicBackground';
+import GlassPanel from '../components/magic/GlassPanel';
+import GlowButton from '../components/magic/GlowButton';
+import OracleThinking from '../components/magic/OracleThinking';
+import PressableScale from '../components/magic/PressableScale';
+import { FloatingCard } from '../components/magic/TarotCard';
+import PaywallSheet from '../components/PaywallSheet';
+import PlanPill from '../components/PlanPill';
+import { colors, fonts, glow, radii, type } from '../theme';
+
+function Caret() {
+  const o = useSharedValue(1);
+  useEffect(() => {
+    o.value = withRepeat(withTiming(0.15, { duration: 520, easing: Easing.inOut(Easing.quad) }), -1, true);
+  }, []);
+  const style = useAnimatedStyle(() => ({ opacity: o.value }));
+  return <Animated.View style={[styles.caret, style]} />;
+}
+
+const OracleMessage = memo(({ content, streaming }: { content: string; streaming?: boolean }) => {
+  const { card, body } = splitReading(content);
+  return (
+    <Animated.View entering={FadeInUp.duration(450)} style={styles.oracleRow}>
+      <GlassPanel tone="gold" style={styles.oracleBubble}>
+        {card && (
+          <View style={styles.cardHead}>
+            <Text style={styles.cardName}>{card}</Text>
+            <View style={styles.cardRule} />
+          </View>
+        )}
+        <Text style={styles.oracleText}>
+          {body}
+        </Text>
+        {streaming && <Caret />}
+      </GlassPanel>
+    </Animated.View>
+  );
+});
+
+const UserMessage = memo(({ content }: { content: string }) => (
+  <Animated.View entering={FadeInUp.duration(350)} style={styles.userRow}>
+    <View style={styles.userBubble}>
+      <Text style={styles.userText}>{content}</Text>
+    </View>
+  </Animated.View>
+));
 
 type Props = { route?: any };
 const ChatScreen: React.FC<Props> = ({ route }) => {
+  const navigation = useNavigation<any>();
   const { user } = useAuth();
-  const { canChat, refresh } = useSub();
+  const { canChat } = useSub();
   const insets = useSafeAreaInsets();
   const [chatId, setChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState('');
   const [freeUsed, setFreeUsed] = useState(false);
   const [loading, setLoading] = useState(false);
+  // Text of the reply as it streams in; null when no reply is in flight.
+  const [streamingText, setStreamingText] = useState<string | null>(null);
+  const [paywallOpen, setPaywallOpen] = useState(false);
+  const [focused, setFocused] = useState(false);
 
   const scroller = useRef<ScrollView>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
-  // Log when canChat changes
-  useEffect(() => {
-    console.log('ChatScreen: canChat changed to:', canChat);
-  }, [canChat]);
+  // Stop streaming if the user leaves mid-reading.
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   useEffect(() => {
-    if (!user) {
-      console.log('ChatScreen: No user yet');
-      return;
-    }
-    
+    if (!user) return;
+
     const paramId = route?.params?.chatId as string | undefined;
-    console.log('ChatScreen: Ensuring chat, paramId:', paramId, 'userId:', user.uid);
-    
     ensureChat(user.uid, paramId)
-      .then((id: string) => {
-        console.log('ChatScreen: Chat ID received:', id);
-        setChatId(id);
-      })
+      .then((id: string) => setChatId(id))
       .catch((error) => {
         console.error('ChatScreen: Error ensuring chat:', error);
         // Create a fallback chat ID if ensureChat fails
-        const fallbackId = `chat-${Date.now()}`;
-        console.log('ChatScreen: Using fallback chat ID:', fallbackId);
-        setChatId(fallbackId);
+        setChatId(`chat-${Date.now()}`);
       });
   }, [user?.uid, route?.params?.chatId]);
 
   // Check global free trial status when user loads
   useEffect(() => {
     if (!user) return;
-    
-    console.log('ChatScreen: Checking global free trial status for user:', user.uid);
     hasUsedFreeTrial(user.uid)
-      .then((used) => {
-        console.log('ChatScreen: User has used free trial:', used);
-        setFreeUsed(used);
-      })
-      .catch((error) => {
-        console.error('ChatScreen: Error checking free trial:', error);
-      });
+      .then(setFreeUsed)
+      .catch((error) => console.error('ChatScreen: Error checking free trial:', error));
   }, [user?.uid]);
 
   // Load existing chat messages when chatId is set
   useEffect(() => {
     if (!user || !chatId) return;
-    
-    console.log('ChatScreen: Loading messages for chatId:', chatId);
     loadChat(user.uid, chatId)
       .then((chat) => {
-        if (chat && chat.messages && chat.messages.length > 0) {
-          console.log('ChatScreen: Loaded', chat.messages.length, 'messages');
-          setMessages(chat.messages);
-        } else {
-          console.log('ChatScreen: No messages found in chat');
-        }
+        if (chat?.messages?.length) setMessages(chat.messages);
       })
-      .catch((error) => {
-        console.error('ChatScreen: Error loading chat:', error);
-      });
+      .catch((error) => console.error('ChatScreen: Error loading chat:', error));
   }, [user?.uid, chatId]);
 
-  const scrollToEnd = () => setTimeout(() => scroller.current?.scrollToEnd({ animated: true }), 100);
+  const locked = !canChat && freeUsed;
 
-  const onSend = async () => {
-    const text = input.trim();
-    console.log('=== onSend START ===');
-    console.log('onSend: text:', text, 'user:', !!user, 'chatId:', chatId, 'loading:', loading);
-    
-    if (!text || !user || !chatId || loading) {
-      console.log('onSend: early return - missing requirements');
+  const sendMessage = async (raw?: string) => {
+    const text = (raw ?? input).trim();
+    if (!text || !user || !chatId || loading) return;
+    if (locked) {
+      setPaywallOpen(true);
       return;
     }
-    
-    console.log('onSend: Setting loading to true');
+
     setLoading(true);
-    
-    console.log('onSend: Creating user message');
     const userMsg: Msg = { role: 'user', content: text, ts: Date.now() };
-    setMessages(prev => [...prev, userMsg]);
+    const history = [...messages, userMsg];
+    setMessages(history);
     setInput('');
-    
-    console.log('onSend: Appending user message to Firestore');
-    try {
-      await appendMessage(user.uid, chatId, messages, userMsg);
-      console.log('onSend: User message appended successfully');
-    } catch (error) {
-      console.error('onSend: Error appending user message:', error);
-    }
-    
-    const updatedAfterUser = [...messages, userMsg];
-    scrollToEnd();
+
+    // Save the question while the oracle answers; the reply is written after it lands.
+    const savingUser = appendMessage(user.uid, chatId, messages, userMsg).catch((error) =>
+      console.error('sendMessage: Error appending user message:', error)
+    );
+
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     try {
-      // Get oracle reply (mock or real)
-      console.log('onSend: Calling tarotReply with', updatedAfterUser.length, 'messages...');
-      const startTime = Date.now();
-      
-      const replyText = await tarotReply(updatedAfterUser);
-      
-      const elapsed = Date.now() - startTime;
-      console.log('onSend: Got reply in', elapsed, 'ms');
-      console.log('onSend: Reply text:', replyText?.substring(0, 100) + '...');
-      
+      setStreamingText('');
+      const replyText = await streamTarotReply(history, {
+        signal: controller.signal,
+        onDelta: (_, full) => setStreamingText(full),
+      });
+      if (controller.signal.aborted) return;
+
       const botMsg: Msg = { role: 'assistant', content: replyText, ts: Date.now() };
-      console.log('onSend: Adding bot message to UI');
-      setMessages(prev => [...prev, botMsg]);
-      
-      console.log('onSend: Appending bot message to Firestore');
-      await appendMessage(user.uid, chatId, updatedAfterUser, botMsg);
-      console.log('onSend: Bot message appended successfully');
-      
-      console.log('onSend: Setting title from assistant message');
+      setMessages((prev) => [...prev, botMsg]);
+      setStreamingText(null);
+
+      await savingUser;
+      await appendMessage(user.uid, chatId, history, botMsg);
       await setTitleFromAssistant(user.uid, chatId, replyText);
-      console.log('onSend: Title set successfully');
-      
+
       // Mark free trial as used globally (if not subscribed)
       if (!canChat && !freeUsed) {
-        console.log('onSend: Marking free trial as used globally');
         await markFreeTrialUsed(user.uid);
       }
-      
       setFreeUsed(true);
-      scrollToEnd();
-      console.log('=== onSend SUCCESS ===');
     } catch (error) {
-      console.error('=== onSend ERROR ===');
       console.error('Error getting tarot reading:', error);
-      const errorMsg: Msg = { role: 'assistant', content: 'The spirits are unclear at the moment. Please try again.', ts: Date.now() };
-      setMessages(prev => [...prev, errorMsg]);
+      const errorMsg: Msg = { role: 'assistant', content: "Something went wrong getting your reading. Please try again.", ts: Date.now() };
+      setMessages((prev) => [...prev, errorMsg]);
+      setStreamingText(null);
     } finally {
-      console.log('onSend: Setting loading to false');
       setLoading(false);
     }
   };
 
-  const handleSubscribe = async () => {
-    console.log('=== ChatScreen handleSubscribe START ===');
-    console.log('handleSubscribe: user exists:', !!user);
-    console.log('handleSubscribe: current canChat:', canChat, 'freeUsed:', freeUsed);
-    
-    if (!user) {
-      console.log('handleSubscribe: No user, aborting');
-      return;
-    }
-    
-    try {
-      console.log('handleSubscribe: Calling startPurchaseFlow...');
-      await startPurchaseFlow(user.uid);
-      console.log('handleSubscribe: Purchase flow completed');
-      
-      console.log('handleSubscribe: Calling refresh...');
-      await refresh();
-      console.log('handleSubscribe: Subscription refreshed');
-      console.log('handleSubscribe: canChat is now:', canChat);
-      console.log('=== ChatScreen handleSubscribe SUCCESS ===');
-    } catch (error) {
-      console.error('=== ChatScreen handleSubscribe ERROR ===');
-      console.error('Error in handleSubscribe:', error);
-    }
-  };
+  const goBack = () => (navigation.canGoBack() ? navigation.goBack() : navigation.replace('Dashboard'));
+  const scrollToEnd = () => scroller.current?.scrollToEnd({ animated: true });
 
   const renderInputBar = () => {
-    // Show Subscribe button if: user is not subscribed AND has used their free message
-    // Show input if: user is subscribed OR hasn't used free message yet
-    const shouldShowSubscribe = !canChat && freeUsed;
-    
-    console.log('renderInputBar: canChat =', canChat, 'freeUsed =', freeUsed, 'shouldShowSubscribe =', shouldShowSubscribe);
-    
-    if (shouldShowSubscribe) {
+    if (locked) {
       return (
-        <View style={{ 
-          padding: 16, 
-          paddingBottom: 16 + insets.bottom, // Add safe area padding for navigation bar
-          alignItems: 'center', 
-          backgroundColor: 'rgba(0, 0, 0, 0.9)' 
-        }}>
-          <TouchableOpacity
-            onPress={handleSubscribe}
-            style={{
-              backgroundColor: '#581c87',
-              borderRadius: 24,
-              paddingVertical: 14,
-              paddingHorizontal: 32,
-              borderWidth: 2,
-              borderColor: '#a855f7',
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 8,
-            }}
-          >
-            <Sparkles color="#e9d5ff" size={20} fill="#e9d5ff" />
-            <Text style={{ color: '#e9d5ff', fontSize: 18, fontWeight: '700' }}>
-              Subscribe 🔮
-            </Text>
-          </TouchableOpacity>
-          <Text style={{ color: '#94a3b8', fontSize: 12, marginTop: 8 }}>
-            Unlock unlimited readings
-          </Text>
-        </View>
+        <Animated.View entering={FadeInDown.duration(500)} style={[styles.dock, { paddingBottom: 14 + insets.bottom }]}>
+          <GlassPanel tone="gold" style={styles.lockPanel}>
+            <Text style={type.heading}>That was your free reading</Text>
+            <Text style={type.caption}>Get 24 hours for $3, or subscribe for $30 a month.</Text>
+            <View style={{ alignSelf: 'stretch', marginTop: 8 }}>
+              <GlowButton label="See plans" onPress={() => setPaywallOpen(true)} />
+            </View>
+          </GlassPanel>
+        </Animated.View>
       );
     }
 
+    const canSend = !loading && !!input.trim();
     return (
-      <View style={{ 
-        flexDirection: 'row', 
-        alignItems: 'center', 
-        gap: 8, 
-        padding: 12, 
-        paddingBottom: 12 + insets.bottom, // Add safe area padding for navigation bar
-        backgroundColor: 'rgba(0, 0, 0, 0.9)' 
-      }}>
-        <Input
-          value={input}
-          onChangeText={setInput}
-          placeholder="What can I help you to navigate?"
-          placeholderTextColor="#64748b"
-          onSubmitEditing={onSend}
-          editable={!loading}
-          style={{ 
-            flex: 1, 
-            backgroundColor: '#1e293b',
-            borderColor: '#475569',
-            color: '#e2e8f0',
-          }}
-        />
-        <TouchableOpacity
-          onPress={onSend}
-          disabled={loading || !input.trim()}
-          style={{ 
-            height: 48, 
-            width: 48, 
-            borderRadius: 12, 
-            backgroundColor: loading || !input.trim() ? '#334155' : '#1e3a8a', 
-            alignItems: 'center', 
-            justifyContent: 'center' 
-          }}
-          aria-label="Send"
-        >
-          {loading ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <Send size={20} color="#fff" />
-          )}
-        </TouchableOpacity>
+      <View style={[styles.dock, { paddingBottom: 12 + insets.bottom }]}>
+        <View style={[styles.composer, focused && styles.composerFocused]}>
+          <TextInput
+            value={input}
+            onChangeText={setInput}
+            placeholder="Ask a question"
+            placeholderTextColor={colors.textFaint}
+            selectionColor={colors.gold}
+            onSubmitEditing={() => sendMessage()}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            editable={!loading}
+            returnKeyType="send"
+            style={styles.composerInput}
+          />
+          <PressableScale
+            onPress={() => sendMessage()}
+            disabled={!canSend}
+            scaleTo={0.9}
+            accessibilityRole="button"
+            accessibilityLabel="Send"
+            style={[styles.send, canSend ? glow(colors.gold, 14, 0.6) : styles.sendIdle]}
+          >
+            <ArrowUp size={20} color={canSend ? colors.night : colors.textFaint} strokeWidth={2.5} />
+          </PressableScale>
+        </View>
       </View>
     );
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#000' }}>
-      <ImageBackground source={chatBg} style={{ flex: 1 }} imageStyle={{ opacity: 0.15 }}>
-        <KeyboardAvoidingView 
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
-          style={{ flex: 1 }}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    <CosmicBackground image={chatBg} imageOpacity={0.28} density="calm">
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
+        <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+          <PressableScale onPress={goBack} style={styles.iconBtn} accessibilityRole="button" accessibilityLabel="Back">
+            <ChevronLeft size={22} color={colors.text} />
+          </PressableScale>
+          <Text style={styles.headerTitle}>Tarot Oracle</Text>
+          <PlanPill onPress={() => setPaywallOpen(true)} />
+        </View>
+
+        <ScrollView
+          ref={scroller}
+          contentContainerStyle={styles.thread}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          onContentSizeChange={scrollToEnd}
         >
-          <View style={{ flex: 1, backgroundColor: 'transparent' }}>
-            <ScrollView 
-              ref={scroller} 
-              contentContainerStyle={{ padding: 16, paddingTop: 60, paddingBottom: 24 }}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-              {/* Empty-state hero */}
-              {messages.length === 0 && (
-                <View style={{ 
-                  backgroundColor: 'rgba(30, 58, 138, 0.3)',
-                  borderRadius: 16,
-                  padding: 20,
-                  marginVertical: 40,
-                  borderWidth: 1,
-                  borderColor: '#3b82f6',
-                }}>
-                  <Text style={{ 
-                    color: '#93c5fd', 
-                    textAlign: 'center',
-                    fontSize: 16,
-                    lineHeight: 24,
-                  }}>
-                    Blessings upon your journey 🌙{'\n\n'}
-                    What would you like insight on today?
-                  </Text>
-                </View>
-              )}
+          {/* Empty-state hero */}
+          {messages.length === 0 && (
+            <Animated.View entering={FadeIn.duration(900)} style={styles.emptyHero}>
+              <FloatingCard width={84} face="back" amplitude={8} />
+              <Text style={styles.emptyTitle}>What's your question?</Text>
+              <Text style={type.caption}>
+                Love, work, a decision, a feeling you can't shake. Ask it the way you'd say it out loud.
+              </Text>
+            </Animated.View>
+          )}
 
-              {messages.map((m, i) => {
-                const isUser = m.role === 'user';
-                return (
-                  <View 
-                    key={i} 
-                    style={{ 
-                      flexDirection: 'row', 
-                      justifyContent: isUser ? 'flex-end' : 'flex-start', 
-                      marginBottom: 12 
-                    }}
-                  >
-                    <View
-                      style={{
-                        maxWidth: '80%',
-                        backgroundColor: isUser ? '#1e3a8a' : 'rgba(13, 20, 35, 0.9)',
-                        paddingVertical: 12,
-                        paddingHorizontal: 16,
-                        borderRadius: 16,
-                        borderWidth: isUser ? 0 : 1,
-                        borderColor: isUser ? 'transparent' : '#facc15',
-                      }}
-                    >
-                      <Text style={{ 
-                        color: isUser ? '#ffffff' : '#fde68a',
-                        fontSize: 15,
-                        lineHeight: 22,
-                      }}>
-                        {m.content}
-                      </Text>
-                    </View>
-                  </View>
-                );
-              })}
+          {messages.map((m, i) =>
+            m.role === 'user' ? (
+              <UserMessage key={`${m.ts}-${i}`} content={m.content} />
+            ) : (
+              <OracleMessage key={`${m.ts}-${i}`} content={m.content} />
+            )
+          )}
 
-              {loading && (
-                <View style={{ 
-                  flexDirection: 'row', 
-                  justifyContent: 'flex-start', 
-                  marginBottom: 12 
-                }}>
-                  <View
-                    style={{
-                      backgroundColor: 'rgba(13, 20, 35, 0.9)',
-                      paddingVertical: 16,
-                      paddingHorizontal: 20,
-                      borderRadius: 16,
-                      borderWidth: 1,
-                      borderColor: '#facc15',
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 12,
-                    }}
-                  >
-                    <ActivityIndicator size="small" color="#facc15" />
-                    <Text style={{ color: '#fde68a', fontSize: 15 }}>
-                      Consulting the cards...
-                    </Text>
-                  </View>
-                </View>
-              )}
-            </ScrollView>
+          {streamingText ? <OracleMessage content={streamingText} streaming /> : null}
+          {loading && !streamingText && (
+            <Animated.View entering={FadeIn.duration(300)} style={styles.oracleRow}>
+              <OracleThinking />
+            </Animated.View>
+          )}
+        </ScrollView>
 
-            {/* Input or Subscribe */}
-            {renderInputBar()}
-          </View>
-        </KeyboardAvoidingView>
-      </ImageBackground>
-    </SafeAreaView>
+        {/* Input or paywall */}
+        {renderInputBar()}
+      </KeyboardAvoidingView>
+
+      <PaywallSheet
+        visible={paywallOpen}
+        onClose={() => setPaywallOpen(false)}
+        reason={locked ? 'Your free reading is complete' : undefined}
+      />
+    </CosmicBackground>
   );
 };
 
 export default ChatScreen;
+
+const styles = StyleSheet.create({
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.hairline,
+    backgroundColor: 'rgba(4, 5, 12, 0.55)',
+  },
+  iconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.glass,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.hairline,
+  },
+  headerTitle: { flex: 1, fontFamily: fonts.display, fontSize: 23, color: colors.parchment, textAlign: 'center' },
+  thread: { padding: 16, paddingBottom: 28, width: '100%', maxWidth: 720, alignSelf: 'center', flexGrow: 1 },
+  emptyHero: { alignItems: 'flex-start', gap: 8, paddingTop: 32, paddingHorizontal: 6 },
+  emptyTitle: { ...type.title, marginTop: 18 },
+  userRow: { flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 14 },
+  userBubble: {
+    maxWidth: '82%',
+    backgroundColor: 'rgba(84, 106, 214, 0.28)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(157, 183, 255, 0.35)',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 22,
+    borderBottomRightRadius: 6,
+  },
+  userText: { fontFamily: fonts.body, fontSize: 17, lineHeight: 24, color: '#f4f5ff' },
+  oracleRow: { flexDirection: 'row', justifyContent: 'flex-start', marginBottom: 16 },
+  oracleBubble: { maxWidth: '92%', paddingVertical: 16, paddingHorizontal: 18, borderRadius: 22, borderBottomLeftRadius: 6 },
+  cardHead: { marginBottom: 10 },
+  cardName: { fontFamily: fonts.display, fontSize: 28, lineHeight: 32, color: colors.goldBright },
+  cardRule: { height: StyleSheet.hairlineWidth, backgroundColor: colors.hairlineGold, marginTop: 10, width: 64 },
+  oracleText: { fontFamily: fonts.body, fontSize: 17, lineHeight: 26, color: colors.text },
+  caret: { width: 8, height: 16, borderRadius: 2, backgroundColor: colors.gold, marginTop: 4 },
+  dock: { paddingHorizontal: 14, paddingTop: 10, width: '100%', maxWidth: 720, alignSelf: 'center' },
+  composer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingLeft: 18,
+    paddingRight: 6,
+    paddingVertical: 6,
+    borderRadius: radii.pill,
+    backgroundColor: colors.glassStrong,
+    borderWidth: 1,
+    borderColor: colors.hairline,
+  },
+  composerFocused: { borderColor: colors.hairlineGold, ...glow(colors.gold, 16, 0.3) },
+  composerInput: {
+    flex: 1,
+    fontFamily: fonts.body,
+    fontSize: 17,
+    color: colors.text,
+    paddingVertical: 10,
+    outlineStyle: 'none',
+  } as any,
+  send: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.gold,
+  },
+  sendIdle: { backgroundColor: 'rgba(255,255,255,0.06)' },
+  lockPanel: { padding: 18, gap: 4 },
+});

@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import { isToday, isYesterday } from 'date-fns';
 import { isMock } from '../lib/env';
+import { splitReading } from '../lib/reading';
 
 export type Msg = { role: 'user' | 'assistant'; content: string; ts: number };
 export type Chat = {
@@ -191,8 +192,9 @@ export async function appendMessage(uid: string, chatId: string, current: Msg[],
 
 export async function setTitleFromAssistant(uid: string, chatId: string, assistantText: string) {
   console.log('setTitleFromAssistant: START - chatId:', chatId);
+  // Name the chat after the card drawn; fall back to the opening words.
   const words = assistantText.split(/\s+/).slice(0, 4);
-  const title = words.join(' ') + (words.length < 4 ? '' : '…');
+  const title = splitReading(assistantText).card || words.join(' ') + (words.length < 4 ? '' : '...');
   console.log('setTitleFromAssistant: Title:', title);
 
   if (isMock()) {

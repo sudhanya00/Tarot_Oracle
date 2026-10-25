@@ -21,16 +21,21 @@ This guide will help you set up Stripe payments for the Tarot Oracle app.
 3. Copy your **Secret key** (starts with `sk_test_` or `sk_live_`)
    - ⚠️ **NEVER** commit the secret key to git!
 
-### 1.3 Create a Product and Price
-1. Go to **Products** → **Add product**
-2. Name: "Premium Subscription" (or your choice)
-3. Description: "Unlimited tarot readings"
-4. Pricing:
-   - Type: Recurring
-   - Price: $9.99/month (or your choice)
-   - Billing period: Monthly
-5. Click **Save product**
-6. Copy the **Price ID** (starts with `price_`)
+### 1.3 Create the two prices
+Tarot Oracle sells two plans, so create one product with two prices (or two products):
+
+| Plan | Stripe price type | Amount | Function param |
+|------|-------------------|--------|----------------|
+| Day Pass (24 hours of unlimited readings) | **One-time** | $3.00 | `STRIPE_PRICE_ID_DAY` |
+| Monthly (unlimited readings) | **Recurring**, monthly | $30.00 | `STRIPE_PRICE_ID_MONTH` |
+
+1. Go to **Products** → **Add product** (e.g. "Tarot Oracle Readings")
+2. Add a **one-time** price of $3.00 and copy its Price ID (`price_...`)
+3. Add a **recurring monthly** price of $30.00 and copy its Price ID
+4. The old `STRIPE_PRICE_ID` is still read as a fallback for the monthly price, but set both new IDs.
+
+Day Passes stack: buying another while one is active adds 24 hours to the remaining time.
+A cancelled monthly plan never removes Day Pass time that is still left.
 
 ## 🔧 Step 2: Configure Environment Variables
 
@@ -43,11 +48,17 @@ STRIPE_PRICE_ID=price_your_price_id_here
 ```
 
 ### 2.2 Configure Firebase Functions
-```bash
-# Set Stripe secret in Firebase Functions config
-cd functions
-firebase functions:config:set stripe.secret="sk_test_your_secret_key"
-firebase functions:config:set stripe.price_id="price_your_price_id"
+The functions read these as Firebase params (`defineString`). Put them in `functions/.env`
+(do not commit it), or enter them when `firebase deploy` prompts:
+
+```env
+STRIPE_SECRET_KEY=sk_test_your_secret_key
+STRIPE_PRICE_ID_DAY=price_for_the_3_dollar_day_pass
+STRIPE_PRICE_ID_MONTH=price_for_the_30_dollar_monthly_plan
+STRIPE_WEBHOOK_SECRET=whsec_your_signing_secret
+# Optional: where Stripe sends the browser after checkout
+CHECKOUT_SUCCESS_URL=https://tarotoracleapp.com/checkout-success?session_id={CHECKOUT_SESSION_ID}
+CHECKOUT_CANCEL_URL=https://tarotoracleapp.com/checkout-cancelled
 ```
 
 ## 📦 Step 3: Deploy Cloud Functions

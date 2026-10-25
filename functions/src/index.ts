@@ -9,7 +9,23 @@ admin.initializeApp();
 
 // Define parameters for runtime config
 const stripeSecretKey = defineString("STRIPE_SECRET_KEY");
-const stripePriceId = defineString("STRIPE_PRICE_ID");
+// Pricing: $3 one-time Day Pass (24h of access, stackable) and $30/month subscription.
+const stripePriceIdDay = defineString("STRIPE_PRICE_ID_DAY", {default: ""});
+const stripePriceIdMonth = defineString("STRIPE_PRICE_ID_MONTH", {default: ""});
+// Legacy single price, used as the monthly price until STRIPE_PRICE_ID_MONTH is set.
+const stripePriceId = defineString("STRIPE_PRICE_ID", {default: ""});
+const checkoutSuccessUrl = defineString("CHECKOUT_SUCCESS_URL", {
+  default: "https://tarotoracleapp.com/checkout-success?session_id={CHECKOUT_SESSION_ID}",
+});
+const checkoutCancelUrl = defineString("CHECKOUT_CANCEL_URL", {
+  default: "https://tarotoracleapp.com/checkout-cancelled",
+});
+
+type Plan = "day" | "month";
+
+const DAY_PASS_MS = 24 * 60 * 60 * 1000;
+// Covers the gap between a period ending and Stripe's renewal webhook arriving.
+const RENEWAL_GRACE_MS = 6 * 60 * 60 * 1000;
 
 // Initialize Stripe (will use runtime config)
 const getStripe = () => {
@@ -17,68 +33,147 @@ const getStripe = () => {
   if (!secret) {
     throw new Error("Stripe secret key not configured");
   }
-  return new StripePkg(secret, { apiVersion: "2026-06-24.dahlia" });
+  return new StripePkg(secret, { apiVersion: "2026-06-24.dahlia" as any });
 };
 
-// Firebase Callable Function: Create Stripe Checkout Session
+const priceIdFor = (plan: Plan): string => {
+  const id = plan === "day" ?
+    stripePriceIdDay.value() :
+    stripePriceIdMonth.value() || stripePriceId.value();
+  if (!id) {
+    throw new HttpsError("failed-precondition", `No Stripe price configured for the ${plan} plan.`);
+  }
+  return id;
+};
+
+// current_period_end moved from the subscription to its items in newer Stripe API versions.
+const periodEndMs = (subscription: StripePkg.Subscription): number => {
+  const sub = subscription as any;
+  const end = sub.current_period_end ?? sub.items?.data?.[0]?.current_period_end ?? 0;
+  return end * 1000;
+};
+
+type EntitlementState = {
+  dayPassExpiresAt?: number;
+  monthlyActive?: boolean;
+  monthlyPeriodEnd?: number;
+};
+
+// Derives the fields the app reads (isActive / expiresAt / plan) from both purchase types,
+// so a cancelled subscription never wipes out Day Pass time that is still left.
+const entitlementFields = (state: EntitlementState) => {
+  const now = Date.now();
+  const dayUntil = state.dayPassExpiresAt || 0;
+  const monthUntil = state.monthlyActive ? (state.monthlyPeriodEnd || 0) + RENEWAL_GRACE_MS : 0;
+  const expiresAt = Math.max(dayUntil, monthUntil);
+  const plan: Plan | null = monthUntil > now ? "month" : dayUntil > now ? "day" : null;
+  return {
+    ...state,
+    isActive: expiresAt > now,
+    expiresAt,
+    plan,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+};
+
+const subscriptionRef = (userId: string) => admin.firestore().collection("subscriptions").doc(userId);
+
+// Records the monthly subscription state for a user and recomputes their access.
+const applyMonthly = async (userId: string, subscription: StripePkg.Subscription) => {
+  const ref = subscriptionRef(userId);
+  await admin.firestore().runTransaction(async (tx) => {
+    const current = (await tx.get(ref)).data() || {};
+    tx.set(ref, {
+      ...entitlementFields({
+        dayPassExpiresAt: current.dayPassExpiresAt,
+        monthlyActive: subscription.status === "active" || subscription.status === "trialing",
+        monthlyPeriodEnd: periodEndMs(subscription),
+      }),
+      status: subscription.status,
+      stripeCustomerId: subscription.customer,
+      stripeSubscriptionId: subscription.id,
+    }, { merge: true });
+  });
+};
+
+// Adds 24h to the user's Day Pass (stacking on top of any time left), once per Checkout Session.
+const applyDayPass = async (userId: string, session: StripePkg.Checkout.Session) => {
+  const db = admin.firestore();
+  const ref = subscriptionRef(userId);
+  const receiptRef = db.collection("stripe_checkout_sessions").doc(session.id);
+
+  await db.runTransaction(async (tx) => {
+    const [receipt, snap] = await Promise.all([tx.get(receiptRef), tx.get(ref)]);
+    if (receipt.exists) return; // Stripe retried the webhook; already credited.
+
+    const current = snap.data() || {};
+    const base = Math.max(Date.now(), current.dayPassExpiresAt || 0);
+    tx.set(ref, {
+      ...entitlementFields({
+        dayPassExpiresAt: base + DAY_PASS_MS,
+        monthlyActive: current.monthlyActive,
+        monthlyPeriodEnd: current.monthlyPeriodEnd,
+      }),
+      stripeCustomerId: session.customer || current.stripeCustomerId || null,
+    }, { merge: true });
+    tx.set(receiptRef, {
+      userId,
+      plan: "day",
+      amountTotal: session.amount_total,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  });
+};
+
+// Firebase Callable Function: Create Stripe Checkout Session for a plan ("day" or "month")
 export const createStripeCheckoutSession = onCall(async (request) => {
   // Require authentication
   if (!request.auth) {
     throw new HttpsError("unauthenticated", "You must be signed in to start a purchase.");
   }
 
+  const plan: Plan = request.data?.plan === "day" ? "day" : "month";
+  const userId = request.auth.uid;
   const stripe = getStripe();
-  const { userId, priceId } = request.data || {};
-  
-  // Use price ID from config or provided data
-  const finalPriceId = priceId || stripePriceId.value() || "price_1Rrp7ZHjNbUwdLx2q2Pqofvn";
-  
+  const metadata = { userId, plan };
+
   try {
-    // Get user email from auth
-    const userEmail = request.auth.token.email;
-    
-    // Create Stripe Checkout Session
     const session = await stripe.checkout.sessions.create({
-      mode: "subscription",
-      line_items: [
-        {
-          price: finalPriceId,
-          quantity: 1,
-        },
-      ],
-      customer_email: userEmail,
-      client_reference_id: userId || request.auth.uid,
-      success_url: `https://yourapp.com/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `https://yourapp.com/cancel`,
+      mode: plan === "day" ? "payment" : "subscription",
+      line_items: [{ price: priceIdFor(plan), quantity: 1 }],
+      customer_email: request.auth.token.email,
+      client_reference_id: userId,
+      success_url: checkoutSuccessUrl.value(),
+      cancel_url: checkoutCancelUrl.value(),
       allow_promotion_codes: true,
       billing_address_collection: "auto",
-      metadata: {
-        userId: userId || request.auth.uid,
-      },
+      metadata,
+      ...(plan === "day" ?
+        { payment_intent_data: { metadata } } :
+        { subscription_data: { metadata } }),
     });
 
-    console.log("Created Stripe Checkout session:", session.id, "for user:", request.auth.uid);
-    
+    console.log("Created Stripe Checkout session:", session.id, "plan:", plan, "user:", userId);
+
     return {
       sessionId: session.id,
       url: session.url,
     };
   } catch (error: any) {
+    if (error instanceof HttpsError) throw error;
     console.error("Error creating Stripe Checkout session:", error);
     throw new HttpsError("internal", `Failed to create checkout session: ${error.message}`);
   }
 });
 
-
-
-// Optional: Webhook to handle subscription lifecycle events
+// Webhook to handle Day Pass payments and subscription lifecycle events
 const stripeWebhookSecret = defineString("STRIPE_WEBHOOK_SECRET", {default: ""});
 
 export const stripeWebhook = onRequest(async (req, res) => {
   const stripe = getStripe();
   const sig = req.headers["stripe-signature"] as string | undefined;
   const webhookSecret = stripeWebhookSecret.value();
-  
+
   if (!sig || !webhookSecret) {
     res.status(400).send("Missing signature or endpoint secret");
     return;
@@ -93,77 +188,48 @@ export const stripeWebhook = onRequest(async (req, res) => {
     return;
   }
 
-  switch (event.type) {
-    case "checkout.session.completed": {
-      const session = event.data.object as StripePkg.Checkout.Session;
-      console.log("[stripe] checkout.session.completed", session.id);
-      
-      // Get user ID from metadata or client_reference_id
-      const userId = session.metadata?.userId || session.client_reference_id;
-      
-      if (userId && session.payment_status === "paid") {
-        // Activate subscription in Firestore
-        try {
-          await admin.firestore().collection("subscriptions").doc(userId).set({
-            isActive: true,
-            stripeCustomerId: session.customer,
-            stripeSubscriptionId: session.subscription,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          }, { merge: true });
-          
-          console.log("[stripe] Activated subscription for user:", userId);
-        } catch (error) {
-          console.error("[stripe] Error activating subscription:", error);
+  try {
+    switch (event.type) {
+      case "checkout.session.completed": {
+        const session = event.data.object as StripePkg.Checkout.Session;
+        const userId = session.metadata?.userId || session.client_reference_id;
+        console.log("[stripe] checkout.session.completed", session.id, "mode:", session.mode);
+
+        if (!userId || session.payment_status !== "paid") break;
+
+        if (session.mode === "payment" && session.metadata?.plan === "day") {
+          await applyDayPass(userId, session);
+          console.log("[stripe] Credited 24h Day Pass for user:", userId);
+        } else if (session.mode === "subscription" && session.subscription) {
+          const subscriptionId = typeof session.subscription === "string" ?
+            session.subscription :
+            session.subscription.id;
+          await applyMonthly(userId, await stripe.subscriptions.retrieve(subscriptionId));
+          console.log("[stripe] Activated monthly plan for user:", userId);
         }
+        break;
       }
-      break;
-    }
-    case "customer.subscription.created":
-    case "customer.subscription.updated": {
-      const subscription = event.data.object as StripePkg.Subscription;
-      console.log("[stripe] subscription event", event.type, subscription.id);
-      
-      // Update subscription status in Firestore
-      // You'll need to link subscription to user via customer ID
-      if (subscription.metadata?.userId) {
-        try {
-          await admin.firestore().collection("subscriptions").doc(subscription.metadata.userId).set({
-            isActive: subscription.status === "active" || subscription.status === "trialing",
-            stripeSubscriptionId: subscription.id,
-            status: subscription.status,
-            currentPeriodEnd: (subscription as any).current_period_end * 1000, // Convert to ms
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          }, { merge: true });
-          
-          console.log("[stripe] Updated subscription for user:", subscription.metadata.userId);
-        } catch (error) {
-          console.error("[stripe] Error updating subscription:", error);
+      case "customer.subscription.created":
+      case "customer.subscription.updated":
+      case "customer.subscription.deleted": {
+        const subscription = event.data.object as StripePkg.Subscription;
+        const userId = subscription.metadata?.userId;
+        console.log("[stripe] subscription event", event.type, subscription.id, subscription.status);
+        if (userId) {
+          await applyMonthly(userId, subscription);
         }
+        break;
       }
-      break;
+      default:
+        console.log(`[stripe] unhandled event: ${event.type}`);
     }
-    case "customer.subscription.deleted": {
-      const subscription = event.data.object as StripePkg.Subscription;
-      console.log("[stripe] subscription deleted", subscription.id);
-      
-      if (subscription.metadata?.userId) {
-        try {
-          await admin.firestore().collection("subscriptions").doc(subscription.metadata.userId).set({
-            isActive: false,
-            status: "canceled",
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          }, { merge: true });
-          
-          console.log("[stripe] Deactivated subscription for user:", subscription.metadata.userId);
-        } catch (error) {
-          console.error("[stripe] Error deactivating subscription:", error);
-        }
-      }
-      break;
-    }
-    default:
-      console.log(`[stripe] unhandled event: ${event.type}`);
+  } catch (error) {
+    // A 500 makes Stripe retry, and the handlers above are safe to re-run.
+    console.error("[stripe] Error handling event:", event.type, error);
+    res.status(500).send("Webhook handler failed");
+    return;
   }
+
   res.json({ received: true });
 });
 
