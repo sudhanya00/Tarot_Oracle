@@ -103,6 +103,13 @@ const entitlementFields = (state) => {
     };
 };
 const subscriptionRef = (userId) => admin.firestore().collection("subscriptions").doc(userId);
+const userIdForSubscription = async (subscriptionId) => {
+    const match = await admin.firestore().collection("subscriptions")
+        .where("stripeSubscriptionId", "==", subscriptionId)
+        .limit(1)
+        .get();
+    return match.empty ? undefined : match.docs[0].id;
+};
 // Records the monthly subscription state for a user and recomputes their access.
 const applyMonthly = async (userId, subscription) => {
     const ref = subscriptionRef(userId);
@@ -229,7 +236,8 @@ exports.stripeWebhook = (0, https_1.onRequest)({ secrets: [stripeSecretKey, stri
             case "customer.subscription.updated":
             case "customer.subscription.deleted": {
                 const subscription = event.data.object;
-                const userId = subscription.metadata?.userId;
+                // Subscriptions from the old checkout have no userId metadata; find them by ID instead.
+                const userId = subscription.metadata?.userId || await userIdForSubscription(subscription.id);
                 console.log("[stripe] subscription event", event.type, subscription.id, subscription.status);
                 if (userId) {
                     await applyMonthly(userId, subscription);
