@@ -36,7 +36,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.addTestSubscription = exports.trimChatMessages = exports.deleteAccount = exports.stripeWebhook = exports.createStripeCheckoutSession = exports.oracleReply = void 0;
+exports.addTestSubscription = exports.trimChatMessages = exports.deleteAccount = exports.stripeWebhook = exports.createStripeCheckoutSession = exports.checkoutReturn = exports.oracleReply = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const params_1 = require("firebase-functions/params");
 const admin = __importStar(require("firebase-admin"));
@@ -46,6 +46,8 @@ const corsHandler = (0, cors_1.default)({ origin: true });
 admin.initializeApp();
 var oracle_1 = require("./oracle");
 Object.defineProperty(exports, "oracleReply", { enumerable: true, get: function () { return oracle_1.oracleReply; } });
+var checkoutReturn_1 = require("./checkoutReturn");
+Object.defineProperty(exports, "checkoutReturn", { enumerable: true, get: function () { return checkoutReturn_1.checkoutReturn; } });
 // Define parameters for runtime config
 // Secrets live in Secret Manager: firebase functions:secrets:set <NAME>
 const stripeSecretKey = (0, params_1.defineSecret)("STRIPE_SECRET_KEY");
@@ -54,12 +56,10 @@ const stripePriceIdDay = (0, params_1.defineString)("STRIPE_PRICE_ID_DAY", { def
 const stripePriceIdMonth = (0, params_1.defineString)("STRIPE_PRICE_ID_MONTH", { default: "" });
 // Legacy single price, used as the monthly price until STRIPE_PRICE_ID_MONTH is set.
 const stripePriceId = (0, params_1.defineString)("STRIPE_PRICE_ID", { default: "" });
-const checkoutSuccessUrl = (0, params_1.defineString)("CHECKOUT_SUCCESS_URL", {
-    default: "https://tarotoracleapp.com/checkout-success?session_id={CHECKOUT_SESSION_ID}",
-});
-const checkoutCancelUrl = (0, params_1.defineString)("CHECKOUT_CANCEL_URL", {
-    default: "https://tarotoracleapp.com/checkout-cancelled",
-});
+// Optional overrides; by default Checkout returns to the checkoutReturn function's page.
+const checkoutSuccessUrl = (0, params_1.defineString)("CHECKOUT_SUCCESS_URL", { default: "" });
+const checkoutCancelUrl = (0, params_1.defineString)("CHECKOUT_CANCEL_URL", { default: "" });
+const checkoutReturnUrl = (status) => `https://us-central1-${process.env.GCLOUD_PROJECT}.cloudfunctions.net/checkoutReturn?status=${status}`;
 const DAY_PASS_MS = 24 * 60 * 60 * 1000;
 // Covers the gap between a period ending and Stripe's renewal webhook arriving.
 const RENEWAL_GRACE_MS = 6 * 60 * 60 * 1000;
@@ -170,8 +170,8 @@ exports.createStripeCheckoutSession = (0, https_1.onCall)({ secrets: [stripeSecr
             line_items: [{ price: priceIdFor(plan), quantity: 1 }],
             customer_email: request.auth.token.email,
             client_reference_id: userId,
-            success_url: checkoutSuccessUrl.value(),
-            cancel_url: checkoutCancelUrl.value(),
+            success_url: checkoutSuccessUrl.value() || checkoutReturnUrl("success"),
+            cancel_url: checkoutCancelUrl.value() || checkoutReturnUrl("cancelled"),
             allow_promotion_codes: true,
             billing_address_collection: "auto",
             metadata,

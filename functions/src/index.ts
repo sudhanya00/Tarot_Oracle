@@ -8,6 +8,7 @@ const corsHandler = cors({ origin: true });
 admin.initializeApp();
 
 export {oracleReply} from "./oracle";
+export {checkoutReturn} from "./checkoutReturn";
 
 // Define parameters for runtime config
 // Secrets live in Secret Manager: firebase functions:secrets:set <NAME>
@@ -17,12 +18,11 @@ const stripePriceIdDay = defineString("STRIPE_PRICE_ID_DAY", {default: ""});
 const stripePriceIdMonth = defineString("STRIPE_PRICE_ID_MONTH", {default: ""});
 // Legacy single price, used as the monthly price until STRIPE_PRICE_ID_MONTH is set.
 const stripePriceId = defineString("STRIPE_PRICE_ID", {default: ""});
-const checkoutSuccessUrl = defineString("CHECKOUT_SUCCESS_URL", {
-  default: "https://tarotoracleapp.com/checkout-success?session_id={CHECKOUT_SESSION_ID}",
-});
-const checkoutCancelUrl = defineString("CHECKOUT_CANCEL_URL", {
-  default: "https://tarotoracleapp.com/checkout-cancelled",
-});
+// Optional overrides; by default Checkout returns to the checkoutReturn function's page.
+const checkoutSuccessUrl = defineString("CHECKOUT_SUCCESS_URL", {default: ""});
+const checkoutCancelUrl = defineString("CHECKOUT_CANCEL_URL", {default: ""});
+const checkoutReturnUrl = (status: "success" | "cancelled") =>
+  `https://us-central1-${process.env.GCLOUD_PROJECT}.cloudfunctions.net/checkoutReturn?status=${status}`;
 
 type Plan = "day" | "month";
 
@@ -154,8 +154,8 @@ export const createStripeCheckoutSession = onCall({secrets: [stripeSecretKey]}, 
       line_items: [{ price: priceIdFor(plan), quantity: 1 }],
       customer_email: request.auth.token.email,
       client_reference_id: userId,
-      success_url: checkoutSuccessUrl.value(),
-      cancel_url: checkoutCancelUrl.value(),
+      success_url: checkoutSuccessUrl.value() || checkoutReturnUrl("success"),
+      cancel_url: checkoutCancelUrl.value() || checkoutReturnUrl("cancelled"),
       allow_promotion_codes: true,
       billing_address_collection: "auto",
       metadata,

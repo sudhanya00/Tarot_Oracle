@@ -60,9 +60,10 @@ Price IDs and URLs aren't secret; put them in `functions/.env` (gitignored):
 ```env
 STRIPE_PRICE_ID_DAY=price_for_the_3_dollar_day_pass
 STRIPE_PRICE_ID_MONTH=price_for_the_30_dollar_monthly_plan
-# Optional: where Stripe sends the browser after checkout
-CHECKOUT_SUCCESS_URL=https://tarotoracleapp.com/checkout-success?session_id={CHECKOUT_SESSION_ID}
-CHECKOUT_CANCEL_URL=https://tarotoracleapp.com/checkout-cancelled
+# Optional: where Stripe sends the browser after checkout. Defaults to the
+# checkoutReturn function's "return to the app" page.
+# CHECKOUT_SUCCESS_URL=https://example.com/checkout-success
+# CHECKOUT_CANCEL_URL=https://example.com/checkout-cancelled
 ```
 
 The secret key, webhook secret and price IDs must all come from the same Stripe mode (test or live).
