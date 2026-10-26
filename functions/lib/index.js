@@ -47,7 +47,8 @@ admin.initializeApp();
 var oracle_1 = require("./oracle");
 Object.defineProperty(exports, "oracleReply", { enumerable: true, get: function () { return oracle_1.oracleReply; } });
 // Define parameters for runtime config
-const stripeSecretKey = (0, params_1.defineString)("STRIPE_SECRET_KEY");
+// Secrets live in Secret Manager: firebase functions:secrets:set <NAME>
+const stripeSecretKey = (0, params_1.defineSecret)("STRIPE_SECRET_KEY");
 // Pricing: $3 one-time Day Pass (24h of access, stackable) and $30/month subscription.
 const stripePriceIdDay = (0, params_1.defineString)("STRIPE_PRICE_ID_DAY", { default: "" });
 const stripePriceIdMonth = (0, params_1.defineString)("STRIPE_PRICE_ID_MONTH", { default: "" });
@@ -147,7 +148,7 @@ const applyDayPass = async (userId, session) => {
     });
 };
 // Firebase Callable Function: Create Stripe Checkout Session for a plan ("day" or "month")
-exports.createStripeCheckoutSession = (0, https_1.onCall)(async (request) => {
+exports.createStripeCheckoutSession = (0, https_1.onCall)({ secrets: [stripeSecretKey] }, async (request) => {
     // Require authentication
     if (!request.auth) {
         throw new https_1.HttpsError("unauthenticated", "You must be signed in to start a purchase.");
@@ -185,8 +186,8 @@ exports.createStripeCheckoutSession = (0, https_1.onCall)(async (request) => {
     }
 });
 // Webhook to handle Day Pass payments and subscription lifecycle events
-const stripeWebhookSecret = (0, params_1.defineString)("STRIPE_WEBHOOK_SECRET", { default: "" });
-exports.stripeWebhook = (0, https_1.onRequest)(async (req, res) => {
+const stripeWebhookSecret = (0, params_1.defineSecret)("STRIPE_WEBHOOK_SECRET");
+exports.stripeWebhook = (0, https_1.onRequest)({ secrets: [stripeSecretKey, stripeWebhookSecret] }, async (req, res) => {
     const stripe = getStripe();
     const sig = req.headers["stripe-signature"];
     const webhookSecret = stripeWebhookSecret.value();
@@ -250,7 +251,7 @@ exports.stripeWebhook = (0, https_1.onRequest)(async (req, res) => {
 // Permanently deletes the caller's account (required by the App Store for apps with sign-up):
 // stops any monthly billing, then removes their profile, readings, usage and plan, and the
 // Firebase Auth user. Checkout receipts in stripe_checkout_sessions are kept as payment records.
-exports.deleteAccount = (0, https_1.onCall)(async (request) => {
+exports.deleteAccount = (0, https_1.onCall)({ secrets: [stripeSecretKey] }, async (request) => {
     if (!request.auth) {
         throw new https_1.HttpsError("unauthenticated", "Sign in required.");
     }
