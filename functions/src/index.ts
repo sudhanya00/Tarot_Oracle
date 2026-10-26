@@ -169,7 +169,8 @@ export const createStripeCheckoutSession = onCall({secrets: [stripeSecretKey]}, 
   } catch (error: any) {
     if (error instanceof HttpsError) throw error;
     console.error("Error creating Stripe Checkout session:", error);
-    throw new HttpsError("internal", `Failed to create checkout session: ${error.message}`);
+    // Details stay in the logs; Stripe errors can include key fragments and internal codes.
+    throw new HttpsError("internal", "Checkout is unavailable right now. Please try again later.");
   }
 });
 

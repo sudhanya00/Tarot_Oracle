@@ -185,7 +185,8 @@ exports.createStripeCheckoutSession = (0, https_1.onCall)({ secrets: [stripeSecr
         if (error instanceof https_1.HttpsError)
             throw error;
         console.error("Error creating Stripe Checkout session:", error);
-        throw new https_1.HttpsError("internal", `Failed to create checkout session: ${error.message}`);
+        // Details stay in the logs; Stripe errors can include key fragments and internal codes.
+        throw new https_1.HttpsError("internal", "Checkout is unavailable right now. Please try again later.");
     }
 });
 // Webhook to handle Day Pass payments and subscription lifecycle events

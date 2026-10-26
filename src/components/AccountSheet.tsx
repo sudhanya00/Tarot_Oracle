@@ -48,7 +48,7 @@ export default function AccountSheet({ visible, onClose, onLogout, onDeleted }: 
       onDeleted();
     } catch (err: any) {
       console.error('deleteAccount failed:', err);
-      setError(err?.message || 'We could not delete your account. Please try again.');
+      setError('We could not delete your account right now. Please try again in a moment.');
     } finally {
       setDeleting(false);
     }

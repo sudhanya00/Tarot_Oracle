@@ -48,7 +48,8 @@ export default function PaywallSheet({ visible, onClose, reason }: Props) {
       }
     } catch (error: any) {
       console.error('PaywallSheet: purchase failed:', error);
-      Alert.alert('Payment unavailable', error?.message || 'We could not open checkout. Please try again.');
+      // Server messages can be technical; the logs have the details.
+      Alert.alert('Payment unavailable', 'We could not open checkout right now. Please try again in a moment.');
     } finally {
       setBusy(false);
     }
