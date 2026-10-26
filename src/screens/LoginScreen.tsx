@@ -2,10 +2,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
-  KeyboardAvoidingView,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -13,6 +11,7 @@ import {
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { Lock, Mail } from "lucide-react-native";
 
@@ -125,71 +124,70 @@ const LoginScreen: React.FC = () => {
 
   return (
     <CosmicBackground image={oracle} imageOpacity={0.3}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        <ScrollView
-          contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 36, paddingBottom: insets.bottom + 32 }]}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <Animated.View entering={FadeInDown.duration(900)} style={styles.header}>
-            <FloatingCard width={64} face="star" tilt={-4} amplitude={6} style={{ marginBottom: 18 }} />
-            <Text style={type.title}>Sign in</Text>
-            <Text style={type.caption}>Your readings are saved to your account.</Text>
-          </Animated.View>
+      <KeyboardAwareScrollView
+        bottomOffset={24}
+        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 36, paddingBottom: insets.bottom + 32 }]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <Animated.View entering={FadeInDown.duration(900)} style={styles.header}>
+          <FloatingCard width={64} face="star" tilt={-4} amplitude={6} style={{ marginBottom: 18 }} />
+          <Text style={type.title}>Sign in</Text>
+          <Text style={type.caption}>Your readings are saved to your account.</Text>
+        </Animated.View>
 
-          <Animated.View entering={FadeInDown.delay(200).duration(900)}>
-            <GlassPanel style={styles.panel}>
-              <GlowInput
-                value={email}
-                onChangeText={setEmail}
-                placeholder="Email"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-                returnKeyType="next"
-                onSubmitEditing={() => passwordRef.current?.focus()}
-                icon={<Mail size={18} color={colors.textMuted} />}
-              />
-              <GlowInput
-                ref={passwordRef}
-                value={password}
-                onChangeText={setPassword}
-                placeholder="Password"
-                secureTextEntry
-                autoComplete="password"
-                returnKeyType="go"
-                onSubmitEditing={handleEmailLogin}
-                icon={<Lock size={18} color={colors.textMuted} />}
-              />
+        <Animated.View entering={FadeInDown.delay(200).duration(900)}>
+          <GlassPanel style={styles.panel}>
+            <GlowInput
+              value={email}
+              onChangeText={setEmail}
+              placeholder="Email"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+              returnKeyType="next"
+              onSubmitEditing={() => passwordRef.current?.focus()}
+              icon={<Mail size={18} color={colors.textMuted} />}
+            />
+            <GlowInput
+              ref={passwordRef}
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Password"
+              secureTextEntry
+              autoComplete="password"
+              returnKeyType="go"
+              onSubmitEditing={handleEmailLogin}
+              icon={<Lock size={18} color={colors.textMuted} />}
+            />
 
-              <Pressable onPress={handleForgot} style={styles.forgot} hitSlop={8}>
-                <Text style={styles.link}>Forgot password?</Text>
-              </Pressable>
-
-              <GlowButton label="Sign in" onPress={handleEmailLogin} loading={busy === "email"} />
-
-              <View style={styles.divider}>
-                <View style={styles.rule} />
-                <Text style={styles.or}>or</Text>
-                <View style={styles.rule} />
-              </View>
-
-              <GlowButton variant="glass" label="Continue with Google" onPress={handleGoogle} loading={busy === "google"} />
-              {Platform.OS === "ios" && (
-                <GlowButton variant="glass" label="Continue with Apple" onPress={handleApple} loading={busy === "apple"} />
-              )}
-            </GlassPanel>
-          </Animated.View>
-
-          <Animated.View entering={FadeInDown.delay(400).duration(900)}>
-            <Pressable onPress={() => navigation.navigate("SignUp")} style={styles.signup} hitSlop={8}>
-              <Text style={type.caption}>
-                No account? <Text style={styles.linkStrong}>Create one</Text>
-              </Text>
+            <Pressable onPress={handleForgot} style={styles.forgot} hitSlop={8}>
+              <Text style={styles.link}>Forgot password?</Text>
             </Pressable>
-          </Animated.View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+
+            <GlowButton label="Sign in" onPress={handleEmailLogin} loading={busy === "email"} />
+
+            <View style={styles.divider}>
+              <View style={styles.rule} />
+              <Text style={styles.or}>or</Text>
+              <View style={styles.rule} />
+            </View>
+
+            <GlowButton variant="glass" label="Continue with Google" onPress={handleGoogle} loading={busy === "google"} />
+            {Platform.OS === "ios" && (
+              <GlowButton variant="glass" label="Continue with Apple" onPress={handleApple} loading={busy === "apple"} />
+            )}
+          </GlassPanel>
+        </Animated.View>
+
+        <Animated.View entering={FadeInDown.delay(400).duration(900)}>
+          <Pressable onPress={() => navigation.navigate("SignUp")} style={styles.signup} hitSlop={8}>
+            <Text style={type.caption}>
+              No account? <Text style={styles.linkStrong}>Create one</Text>
+            </Text>
+          </Pressable>
+        </Animated.View>
+      </KeyboardAwareScrollView>
       {consentModal}
     </CosmicBackground>
   );

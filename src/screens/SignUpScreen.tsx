@@ -2,16 +2,15 @@
 import React, { useRef, useState } from "react";
 import {
   Alert,
-  KeyboardAvoidingView,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { ChevronLeft, Lock, Mail, User } from "lucide-react-native";
 
@@ -68,67 +67,66 @@ const SignUpScreen: React.FC = () => {
 
   return (
     <CosmicBackground image={oracle} imageOpacity={0.3}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        <ScrollView
-          contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 }]}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <PressableScale onPress={goBack} style={styles.back} accessibilityRole="button" accessibilityLabel="Back">
-            <ChevronLeft size={22} color={colors.text} />
-          </PressableScale>
+      <KeyboardAwareScrollView
+        bottomOffset={24}
+        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 }]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <PressableScale onPress={goBack} style={styles.back} accessibilityRole="button" accessibilityLabel="Back">
+          <ChevronLeft size={22} color={colors.text} />
+        </PressableScale>
 
-          <Animated.View entering={FadeInDown.duration(800)} style={styles.header}>
-            <Text style={type.title}>Create an account</Text>
-            <Text style={type.caption}>Your readings are saved so you can come back to them.</Text>
-          </Animated.View>
+        <Animated.View entering={FadeInDown.duration(800)} style={styles.header}>
+          <Text style={type.title}>Create an account</Text>
+          <Text style={type.caption}>Your readings are saved so you can come back to them.</Text>
+        </Animated.View>
 
-          <Animated.View entering={FadeInDown.delay(150).duration(800)}>
-            <GlassPanel style={styles.panel}>
-              <GlowInput
-                value={name}
-                onChangeText={setName}
-                placeholder="Name"
-                autoComplete="name"
-                autoCapitalize="words"
-                returnKeyType="next"
-                onSubmitEditing={() => emailRef.current?.focus()}
-                icon={<User size={18} color={colors.textMuted} />}
-              />
-              <GlowInput
-                ref={emailRef}
-                value={email}
-                onChangeText={setEmail}
-                placeholder="Email"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-                returnKeyType="next"
-                onSubmitEditing={() => passwordRef.current?.focus()}
-                icon={<Mail size={18} color={colors.textMuted} />}
-              />
-              <GlowInput
-                ref={passwordRef}
-                value={password}
-                onChangeText={setPassword}
-                placeholder="Password (6+ characters)"
-                secureTextEntry
-                autoComplete="new-password"
-                returnKeyType="go"
-                onSubmitEditing={handleSignup}
-                icon={<Lock size={18} color={colors.textMuted} />}
-              />
-              <GlowButton label="Create account" onPress={handleSignup} loading={busy} />
-            </GlassPanel>
-          </Animated.View>
+        <Animated.View entering={FadeInDown.delay(150).duration(800)}>
+          <GlassPanel style={styles.panel}>
+            <GlowInput
+              value={name}
+              onChangeText={setName}
+              placeholder="Name"
+              autoComplete="name"
+              autoCapitalize="words"
+              returnKeyType="next"
+              onSubmitEditing={() => emailRef.current?.focus()}
+              icon={<User size={18} color={colors.textMuted} />}
+            />
+            <GlowInput
+              ref={emailRef}
+              value={email}
+              onChangeText={setEmail}
+              placeholder="Email"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+              returnKeyType="next"
+              onSubmitEditing={() => passwordRef.current?.focus()}
+              icon={<Mail size={18} color={colors.textMuted} />}
+            />
+            <GlowInput
+              ref={passwordRef}
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Password (6+ characters)"
+              secureTextEntry
+              autoComplete="new-password"
+              returnKeyType="go"
+              onSubmitEditing={handleSignup}
+              icon={<Lock size={18} color={colors.textMuted} />}
+            />
+            <GlowButton label="Create account" onPress={handleSignup} loading={busy} />
+          </GlassPanel>
+        </Animated.View>
 
-          <Pressable onPress={goBack} style={styles.signin} hitSlop={8}>
-            <Text style={type.caption}>
-              Already have an account? <Text style={styles.linkStrong}>Sign in</Text>
-            </Text>
-          </Pressable>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        <Pressable onPress={goBack} style={styles.signin} hitSlop={8}>
+          <Text style={type.caption}>
+            Already have an account? <Text style={styles.linkStrong}>Sign in</Text>
+          </Text>
+        </Pressable>
+      </KeyboardAwareScrollView>
       {consentModal}
     </CosmicBackground>
   );

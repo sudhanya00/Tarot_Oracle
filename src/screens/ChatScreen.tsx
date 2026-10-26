@@ -1,7 +1,6 @@
 // src/screens/ChatScreen.tsx
 import React, { memo, useEffect, useRef, useState } from 'react';
 import {
-  KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
@@ -11,6 +10,7 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardAvoidingView, useReanimatedKeyboardAnimation } from 'react-native-keyboard-controller';
 import Animated, {
   Easing,
   FadeIn,
@@ -94,6 +94,11 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
   const [focused, setFocused] = useState(false);
 
   const scroller = useRef<ScrollView>(null);
+  // The home-indicator gap is only needed while the keyboard is closed.
+  const { progress: keyboardProgress } = useReanimatedKeyboardAnimation();
+  const composerInset = useAnimatedStyle(() => ({
+    paddingBottom: 12 + insets.bottom * (1 - keyboardProgress.value),
+  }));
   const abortRef = useRef<AbortController | null>(null);
 
   // Stop streaming if the user leaves mid-reading.
@@ -211,7 +216,7 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
 
     const canSend = !loading && !!input.trim();
     return (
-      <View style={[styles.dock, { paddingBottom: 12 + insets.bottom }]}>
+      <Animated.View style={[styles.dock, composerInset]}>
         <View style={[styles.composer, focused && styles.composerFocused]}>
           <TextInput
             value={input}
@@ -237,14 +242,14 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
             <ArrowUp size={20} color={canSend ? colors.night : colors.textFaint} strokeWidth={2.5} />
           </PressableScale>
         </View>
-      </View>
+      </Animated.View>
     );
   };
 
   return (
     <CosmicBackground image={chatBg} imageOpacity={0.28} density="calm">
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior="padding"
         style={{ flex: 1 }}
       >
         <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
