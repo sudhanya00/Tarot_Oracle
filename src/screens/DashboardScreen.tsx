@@ -1,7 +1,7 @@
 // src/screens/DashboardScreen.tsx
 import React, { useCallback, useState } from "react";
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { useFocusEffect, useIsFocused, useNavigation } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import { ChevronRight, UserRound } from "lucide-react-native";
@@ -67,6 +67,7 @@ const DashboardScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { user, signOutAsync } = useAuth();
   const { canChat } = useSub();
+  const isFocused = useIsFocused();
 
   const [chatGroups, setChatGroups] = useState<Record<string, Chat[]>>({
     Today: [],
@@ -229,10 +230,14 @@ const DashboardScreen: React.FC = () => {
         )}
       </ScrollView>
 
-      {/* AdMob Banner at bottom */}
-      <View style={{ position: "absolute", bottom: insets.bottom, left: 0, right: 0 }}>
-        <AdBanner />
-      </View>
+      {/* AdMob Banner at bottom. Only while this screen is in front: the stack keeps the
+          dashboard mounted under Chat, and the ad's web view grabs focus whenever it loads,
+          which closes the keyboard there. */}
+      {isFocused && (
+        <View style={{ position: "absolute", bottom: insets.bottom, left: 0, right: 0 }}>
+          <AdBanner />
+        </View>
+      )}
 
       <PaywallSheet visible={paywallOpen} onClose={() => setPaywallOpen(false)} />
       <AccountSheet
