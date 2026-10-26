@@ -14,13 +14,9 @@ export {checkoutReturn} from "./checkoutReturn";
 // Secrets live in Secret Manager: firebase functions:secrets:set <NAME>
 const stripeSecretKey = defineSecret("STRIPE_SECRET_KEY");
 // Pricing: $3 one-time Day Pass (24h of access, stackable) and $30/month subscription.
-const stripePriceIdDay = defineString("STRIPE_PRICE_ID_DAY", {default: ""});
-const stripePriceIdMonth = defineString("STRIPE_PRICE_ID_MONTH", {default: ""});
-// Legacy single price, used as the monthly price until STRIPE_PRICE_ID_MONTH is set.
-const stripePriceId = defineString("STRIPE_PRICE_ID", {default: ""});
-// Optional overrides; by default Checkout returns to the checkoutReturn function's page.
-const checkoutSuccessUrl = defineString("CHECKOUT_SUCCESS_URL", {default: ""});
-const checkoutCancelUrl = defineString("CHECKOUT_CANCEL_URL", {default: ""});
+const stripePriceIdDay = defineString("STRIPE_PRICE_ID_DAY");
+const stripePriceIdMonth = defineString("STRIPE_PRICE_ID_MONTH");
+// Checkout returns to the checkoutReturn function's "back to the app" page.
 const checkoutReturnUrl = (status: "success" | "cancelled") =>
   `https://us-central1-${process.env.GCLOUD_PROJECT}.cloudfunctions.net/checkoutReturn?status=${status}`;
 
@@ -42,7 +38,7 @@ const getStripe = () => {
 const priceIdFor = (plan: Plan): string => {
   const id = plan === "day" ?
     stripePriceIdDay.value() :
-    stripePriceIdMonth.value() || stripePriceId.value();
+    stripePriceIdMonth.value();
   if (!id) {
     throw new HttpsError("failed-precondition", `No Stripe price configured for the ${plan} plan.`);
   }
@@ -154,8 +150,8 @@ export const createStripeCheckoutSession = onCall({secrets: [stripeSecretKey]}, 
       line_items: [{ price: priceIdFor(plan), quantity: 1 }],
       customer_email: request.auth.token.email,
       client_reference_id: userId,
-      success_url: checkoutSuccessUrl.value() || checkoutReturnUrl("success"),
-      cancel_url: checkoutCancelUrl.value() || checkoutReturnUrl("cancelled"),
+      success_url: checkoutReturnUrl("success"),
+      cancel_url: checkoutReturnUrl("cancelled"),
       allow_promotion_codes: true,
       billing_address_collection: "auto",
       metadata,

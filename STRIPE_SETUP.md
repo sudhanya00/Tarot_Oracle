@@ -32,7 +32,6 @@ Tarot Oracle sells two plans, so create one product with two prices (or two prod
 1. Go to **Products** → **Add product** (e.g. "Tarot Oracle Readings")
 2. Add a **one-time** price of $3.00 and copy its Price ID (`price_...`)
 3. Add a **recurring monthly** price of $30.00 and copy its Price ID
-4. The old `STRIPE_PRICE_ID` is still read as a fallback for the monthly price, but set both new IDs.
 
 Day Passes stack: buying another while one is active adds 24 hours to the remaining time.
 A cancelled monthly plan never removes Day Pass time that is still left.
@@ -60,10 +59,6 @@ Price IDs and URLs aren't secret; put them in `functions/.env` (gitignored):
 ```env
 STRIPE_PRICE_ID_DAY=price_for_the_3_dollar_day_pass
 STRIPE_PRICE_ID_MONTH=price_for_the_30_dollar_monthly_plan
-# Optional: where Stripe sends the browser after checkout. Defaults to the
-# checkoutReturn function's "return to the app" page.
-# CHECKOUT_SUCCESS_URL=https://example.com/checkout-success
-# CHECKOUT_CANCEL_URL=https://example.com/checkout-cancelled
 ```
 
 The secret key, webhook secret and price IDs must all come from the same Stripe mode (test or live).
