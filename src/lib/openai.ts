@@ -9,7 +9,15 @@ import { getIdToken } from './auth';
 export type ChatMessage = { role: 'user' | 'assistant'; content: string };
 
 const FIRST_BYTE_TIMEOUT_MS = 30000;
-const FALLBACK_ERROR = 'Something went wrong getting your reading. Please try again.';
+
+// Thrown when no reading came back (network, server or OpenAI failure). Callers should show an
+// error and must not treat it as a reply: it isn't saved and doesn't use up the free reading.
+export class ReadingFailedError extends Error {
+  constructor(reason: string) {
+    super(reason);
+    this.name = 'ReadingFailedError';
+  }
+}
 
 // Thrown when the server says the free reading is used and there's no active plan.
 export class PaymentRequiredError extends Error {
@@ -85,8 +93,8 @@ function parseEvent(block: string): { delta?: string; done?: boolean; error?: st
   }
 }
 
-// Core reply, streamed. Resolves with the complete reply text, or a short error message
-// if the reading couldn't be fetched. Throws PaymentRequiredError when the paywall applies.
+// Core reply, streamed. Resolves with the reply text (a reading cut short still counts, as the
+// server does). Throws PaymentRequiredError for the paywall and ReadingFailedError otherwise.
 export async function streamTarotReply(
   userMessages: ChatMessage[],
   options: StreamOptions = {}
@@ -98,8 +106,7 @@ export async function streamTarotReply(
 
   const token = await getIdToken();
   if (!token) {
-    console.warn('streamTarotReply: no signed-in user');
-    return FALLBACK_ERROR;
+    throw new ReadingFailedError('no signed-in user');
   }
 
   const controller = new AbortController();
@@ -125,8 +132,7 @@ export async function streamTarotReply(
 
     if (res.status === 402) throw new PaymentRequiredError();
     if (!res.ok || !res.body) {
-      console.warn('streamTarotReply: oracle error response:', res.status, await res.text());
-      return FALLBACK_ERROR;
+      throw new ReadingFailedError(`oracle returned ${res.status}: ${await res.text()}`);
     }
 
     const reader = res.body.getReader();
@@ -146,7 +152,8 @@ export async function streamTarotReply(
 
         if (event.error) {
           console.warn('streamTarotReply: stream error:', event.error);
-          return full.trim() || FALLBACK_ERROR;
+          if (full.trim()) return full.trim();
+          throw new ReadingFailedError(event.error);
         }
         if (event.delta) {
           full += event.delta;
@@ -155,11 +162,13 @@ export async function streamTarotReply(
       }
     }
 
-    return full.trim() || FALLBACK_ERROR;
+    if (!full.trim()) throw new ReadingFailedError('empty reply');
+    return full.trim();
   } catch (error) {
     clearTimeout(timeoutId);
-    if (error instanceof PaymentRequiredError) throw error;
+    if (error instanceof PaymentRequiredError || error instanceof ReadingFailedError) throw error;
     console.error('streamTarotReply: Error calling oracle:', error);
-    return full.trim() || FALLBACK_ERROR;
+    if (full.trim()) return full.trim();
+    throw new ReadingFailedError(String(error));
   }
 }

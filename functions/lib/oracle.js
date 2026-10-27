@@ -120,7 +120,10 @@ function relay(block) {
     }
     if (!payload)
         return {};
-    return { out: `data: ${JSON.stringify(payload)}\n\n`, text: event.type === "response.output_text.delta" };
+    const error = event.type === "response.failed" || event.type === "error" ?
+        String(event.message || event.error?.message || event.response?.error?.message || event.type) :
+        undefined;
+    return { out: `data: ${JSON.stringify(payload)}\n\n`, text: event.type === "response.output_text.delta", error };
 }
 exports.oracleReply = (0, https_1.onRequest)({ secrets: [openaiApiKey], cors: true, timeoutSeconds: 120 }, async (req, res) => {
     if (req.method !== "POST") {
@@ -187,7 +190,9 @@ exports.oracleReply = (0, https_1.onRequest)({ secrets: [openaiApiKey], cors: tr
             buffer += decoder.decode(chunk, { stream: true }).replace(/\r\n/g, "\n");
             let boundary = buffer.indexOf("\n\n");
             while (boundary !== -1) {
-                const { out, text } = relay(buffer.slice(0, boundary));
+                const { out, text, error } = relay(buffer.slice(0, boundary));
+                if (error)
+                    console.error("[oracle] OpenAI stream error:", error);
                 buffer = buffer.slice(boundary + 2);
                 boundary = buffer.indexOf("\n\n");
                 if (out)

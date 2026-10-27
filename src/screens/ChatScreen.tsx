@@ -138,6 +138,8 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
   // Text of the reply as it streams in; null when no reply is in flight.
   const [streamingText, setStreamingText] = useState<string | null>(null);
   const [paywallOpen, setPaywallOpen] = useState(false);
+  // Shown under the thread when a reading fails; never saved or sent back to the oracle.
+  const [sendError, setSendError] = useState<string | null>(null);
 
   const scroller = useRef<ScrollView>(null);
   // The home-indicator gap is only needed while the keyboard is closed.
@@ -181,6 +183,7 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
     }
 
     setLoading(true);
+    setSendError(null);
 
     // Create the reading on the first question, so just opening Chat saves nothing.
     let id = chatId;
@@ -236,8 +239,7 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
         return;
       }
       console.error('Error getting tarot reading:', error);
-      const errorMsg: Msg = { role: 'assistant', content: "Something went wrong getting your reading. Please try again.", ts: Date.now() };
-      setMessages((prev) => [...prev, errorMsg]);
+      setSendError("Something went wrong getting your reading. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -309,6 +311,7 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
           )}
 
           {streamingText ? <OracleMessage content={streamingText} streaming /> : null}
+          {sendError && !loading ? <OracleMessage content={sendError} /> : null}
           {loading && !streamingText && (
             <Animated.View entering={FadeIn.duration(300)} style={styles.oracleRow}>
               <OracleThinking />

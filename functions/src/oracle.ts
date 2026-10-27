@@ -61,7 +61,7 @@ async function releaseFreeReading(uid: string): Promise<void> {
 
 // Re-emits only the stream events the app reads, so nothing else from the upstream
 // response (such as the instructions) is sent to the device.
-function relay(block: string): { out?: string; text?: boolean } {
+function relay(block: string): { out?: string; text?: boolean; error?: string } {
   const data = block
     .split("\n")
     .filter((line) => line.startsWith("data:"))
@@ -93,7 +93,10 @@ function relay(block: string): { out?: string; text?: boolean } {
       break;
   }
   if (!payload) return {};
-  return {out: `data: ${JSON.stringify(payload)}\n\n`, text: event.type === "response.output_text.delta"};
+  const error = event.type === "response.failed" || event.type === "error" ?
+    String(event.message || event.error?.message || event.response?.error?.message || event.type) :
+    undefined;
+  return {out: `data: ${JSON.stringify(payload)}\n\n`, text: event.type === "response.output_text.delta", error};
 }
 
 export const oracleReply = onRequest(
@@ -170,7 +173,8 @@ export const oracleReply = onRequest(
         buffer += decoder.decode(chunk, {stream: true}).replace(/\r\n/g, "\n");
         let boundary = buffer.indexOf("\n\n");
         while (boundary !== -1) {
-          const {out, text} = relay(buffer.slice(0, boundary));
+          const {out, text, error} = relay(buffer.slice(0, boundary));
+          if (error) console.error("[oracle] OpenAI stream error:", error);
           buffer = buffer.slice(boundary + 2);
           boundary = buffer.indexOf("\n\n");
           if (out) res.write(out);
