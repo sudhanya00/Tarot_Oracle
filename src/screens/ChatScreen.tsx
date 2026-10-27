@@ -150,18 +150,17 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
   // Stop streaming if the user leaves mid-reading.
   useEffect(() => () => abortRef.current?.abort(), []);
 
+  // Opening an existing reading loads it; a new reading isn't saved until the first question.
+  const paramId = route?.params?.chatId as string | undefined;
   useEffect(() => {
-    if (!user) return;
-
-    const paramId = route?.params?.chatId as string | undefined;
-    ensureChat(user.uid, paramId)
-      .then((id: string) => setChatId(id))
-      .catch((error) => {
-        console.error('ChatScreen: Error ensuring chat:', error);
-        // Create a fallback chat ID if ensureChat fails
-        setChatId(`chat-${Date.now()}`);
-      });
-  }, [user?.uid, route?.params?.chatId]);
+    if (!user || !paramId) return;
+    setChatId(paramId);
+    loadChat(user.uid, paramId)
+      .then((chat) => {
+        if (chat?.messages?.length) setMessages(chat.messages);
+      })
+      .catch((error) => console.error('ChatScreen: Error loading chat:', error));
+  }, [user?.uid, paramId]);
 
   // Check global free trial status when user loads
   useEffect(() => {
@@ -171,33 +170,36 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
       .catch((error) => console.error('ChatScreen: Error checking free trial:', error));
   }, [user?.uid]);
 
-  // Load existing chat messages when chatId is set
-  useEffect(() => {
-    if (!user || !chatId) return;
-    loadChat(user.uid, chatId)
-      .then((chat) => {
-        if (chat?.messages?.length) setMessages(chat.messages);
-      })
-      .catch((error) => console.error('ChatScreen: Error loading chat:', error));
-  }, [user?.uid, chatId]);
-
   const locked = !canChat && freeUsed;
 
   const sendMessage = async (raw: string) => {
     const text = raw.trim();
-    if (!text || !user || !chatId || loading) return;
+    if (!text || !user || loading) return;
     if (locked) {
       setPaywallOpen(true);
       return;
     }
 
     setLoading(true);
+
+    // Create the reading on the first question, so just opening Chat saves nothing.
+    let id = chatId;
+    if (!id) {
+      try {
+        id = await ensureChat(user.uid);
+      } catch (error) {
+        console.error('ChatScreen: Error creating chat:', error);
+        id = `chat-${Date.now()}`;
+      }
+      setChatId(id);
+    }
+
     const userMsg: Msg = { role: 'user', content: text, ts: Date.now() };
     const history = [...messages, userMsg];
     setMessages(history);
 
     // Save the question while the oracle answers; the reply is written after it lands.
-    const savingUser = appendMessage(user.uid, chatId, messages, userMsg).catch((error) =>
+    const savingUser = appendMessage(user.uid, id, messages, userMsg).catch((error) =>
       console.error('sendMessage: Error appending user message:', error)
     );
 
@@ -217,8 +219,8 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
       setStreamingText(null);
 
       await savingUser;
-      await appendMessage(user.uid, chatId, history, botMsg);
-      await setTitleFromAssistant(user.uid, chatId, replyText);
+      await appendMessage(user.uid, id, history, botMsg);
+      await setTitleFromAssistant(user.uid, id, replyText);
 
       // Mark free trial as used globally (if not subscribed)
       if (!canChat && !freeUsed) {

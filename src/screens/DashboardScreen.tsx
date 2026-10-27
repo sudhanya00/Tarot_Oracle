@@ -82,7 +82,8 @@ const DashboardScreen: React.FC = () => {
     if (!user) return;
     try {
       const items = await listChats(user.uid);
-      setChatGroups(groupByDate(items));
+      // Older app versions saved a reading as soon as Chat opened; hide the empty ones.
+      setChatGroups(groupByDate(items.filter((chat) => chat.messages?.length)));
     } catch (error) {
       console.error("Error loading chats:", error);
     } finally {
