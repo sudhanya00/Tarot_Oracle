@@ -77,6 +77,54 @@ const UserMessage = memo(({ content }: { content: string }) => (
   </Animated.View>
 ));
 
+// The chat box keeps its own text and focus state. Re-rendering the whole screen (or toggling a
+// view's elevation) while the field is focused makes Android drop the keyboard session, which is
+// what made the keyboard flash open and shut. The gold border animates without a React re-render.
+const ChatComposer = memo(({ disabled, onSend }: { disabled: boolean; onSend: (text: string) => void }) => {
+  const [text, setText] = useState('');
+  const focus = useSharedValue(0);
+  const canSend = !disabled && !!text.trim();
+
+  const frame = useAnimatedStyle(() => ({
+    borderColor: focus.value ? colors.hairlineGold : colors.hairline,
+    shadowOpacity: focus.value * 0.3,
+  }));
+
+  const send = () => {
+    if (!canSend) return;
+    onSend(text);
+    setText('');
+  };
+
+  return (
+    <Animated.View style={[styles.composer, frame]}>
+      <TextInput
+        value={text}
+        onChangeText={setText}
+        placeholder="Ask a question"
+        placeholderTextColor={colors.textFaint}
+        selectionColor={colors.gold}
+        onSubmitEditing={send}
+        onFocus={() => (focus.value = withTiming(1, { duration: 200 }))}
+        onBlur={() => (focus.value = withTiming(0, { duration: 200 }))}
+        editable={!disabled}
+        returnKeyType="send"
+        style={styles.composerInput}
+      />
+      <PressableScale
+        onPress={send}
+        disabled={!canSend}
+        scaleTo={0.9}
+        accessibilityRole="button"
+        accessibilityLabel="Send"
+        style={[styles.send, !canSend && styles.sendIdle]}
+      >
+        <ArrowUp size={20} color={canSend ? colors.night : colors.textFaint} strokeWidth={2.5} />
+      </PressableScale>
+    </Animated.View>
+  );
+});
+
 type Props = { route?: any };
 const ChatScreen: React.FC<Props> = ({ route }) => {
   const navigation = useNavigation<any>();
@@ -85,13 +133,11 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
   const insets = useSafeAreaInsets();
   const [chatId, setChatId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Msg[]>([]);
-  const [input, setInput] = useState('');
   const [freeUsed, setFreeUsed] = useState(false);
   const [loading, setLoading] = useState(false);
   // Text of the reply as it streams in; null when no reply is in flight.
   const [streamingText, setStreamingText] = useState<string | null>(null);
   const [paywallOpen, setPaywallOpen] = useState(false);
-  const [focused, setFocused] = useState(false);
 
   const scroller = useRef<ScrollView>(null);
   // The home-indicator gap is only needed while the keyboard is closed.
@@ -137,8 +183,8 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
 
   const locked = !canChat && freeUsed;
 
-  const sendMessage = async (raw?: string) => {
-    const text = (raw ?? input).trim();
+  const sendMessage = async (raw: string) => {
+    const text = raw.trim();
     if (!text || !user || !chatId || loading) return;
     if (locked) {
       setPaywallOpen(true);
@@ -149,7 +195,6 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
     const userMsg: Msg = { role: 'user', content: text, ts: Date.now() };
     const history = [...messages, userMsg];
     setMessages(history);
-    setInput('');
 
     // Save the question while the oracle answers; the reply is written after it lands.
     const savingUser = appendMessage(user.uid, chatId, messages, userMsg).catch((error) =>
@@ -214,34 +259,9 @@ const ChatScreen: React.FC<Props> = ({ route }) => {
       );
     }
 
-    const canSend = !loading && !!input.trim();
     return (
       <Animated.View style={[styles.dock, composerInset]}>
-        <View style={[styles.composer, focused && styles.composerFocused]}>
-          <TextInput
-            value={input}
-            onChangeText={setInput}
-            placeholder="Ask a question"
-            placeholderTextColor={colors.textFaint}
-            selectionColor={colors.gold}
-            onSubmitEditing={() => sendMessage()}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
-            editable={!loading}
-            returnKeyType="send"
-            style={styles.composerInput}
-          />
-          <PressableScale
-            onPress={() => sendMessage()}
-            disabled={!canSend}
-            scaleTo={0.9}
-            accessibilityRole="button"
-            accessibilityLabel="Send"
-            style={[styles.send, canSend ? glow(colors.gold, 14, 0.6) : styles.sendIdle]}
-          >
-            <ArrowUp size={20} color={canSend ? colors.night : colors.textFaint} strokeWidth={2.5} />
-          </PressableScale>
-        </View>
+        <ChatComposer disabled={loading} onSend={sendMessage} />
       </Animated.View>
     );
   };
@@ -365,8 +385,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.glassStrong,
     borderWidth: 1,
     borderColor: colors.hairline,
+    shadowColor: colors.gold,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 0 },
   },
-  composerFocused: { borderColor: colors.hairlineGold, ...glow(colors.gold, 16, 0.3) },
   composerInput: {
     flex: 1,
     fontFamily: fonts.body,
