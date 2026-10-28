@@ -86,6 +86,16 @@ export default () => ({
       ],
       "./plugins/withGoogleServices.js",
       [
+        "expo-build-properties",
+        {
+          android: {
+            // Enables R8 code shrinking/obfuscation + resource shrinking for release builds.
+            enableProguardInReleaseBuilds: true,
+            enableShrinkResourcesInReleaseBuilds: true
+          }
+        }
+      ],
+      [
         "@react-native-firebase/app",
         {
           "android": {
